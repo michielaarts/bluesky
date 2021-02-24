@@ -16,7 +16,7 @@ class StateBased(ConflictDetection):
 
         # qdlst is for [i,j] qdr from i to j, from perception of ADSB and own coordinates
         qdr, dist = geo.kwikqdrdist_matrix(np.asmatrix(ownship.lat), np.asmatrix(ownship.lon),
-                                    np.asmatrix(intruder.lat), np.asmatrix(intruder.lon))
+                                           np.asmatrix(intruder.lat), np.asmatrix(intruder.lon))
 
         # Convert back to array to allow element-wise array multiplications later on
         # Convert to meters and add large value to own/own pairs
@@ -65,10 +65,10 @@ class StateBased(ConflictDetection):
 
         # Vertical crossing of disk (-dh,+dh)
         dalt = ownship.alt.reshape((1, ownship.ntraf)) - \
-            intruder.alt.reshape((1, ownship.ntraf)).T  + 1e9 * I
+               intruder.alt.reshape((1, ownship.ntraf)).T + 1e9 * I
 
         dvs = ownship.vs.reshape(1, ownship.ntraf) - \
-            intruder.vs.reshape(1, ownship.ntraf).T
+              intruder.vs.reshape(1, ownship.ntraf).T
         dvs = np.where(np.abs(dvs) < 1e-6, 1e-6, dvs)  # prevent division by zero
 
         # Check for passing through each others zone
@@ -82,7 +82,7 @@ class StateBased(ConflictDetection):
         toutconf = np.minimum(toutver, touthor)
 
         swconfl = np.array(swhorconf * (tinconf <= toutconf) * (toutconf > 0.0) * \
-            (tinconf < dtlookahead) * (1.0 - I), dtype=np.bool)
+                           (tinconf < dtlookahead) * (1.0 - I), dtype=np.bool)
 
         # --------------------------------------------------------------------------
         # Update conflict lists
@@ -97,8 +97,8 @@ class StateBased(ConflictDetection):
         lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
 
         return confpairs, lospairs, inconf, tcpamax, \
-            qdr[swconfl], dist[swconfl], np.sqrt(dcpa2[swconfl]), \
-                tcpa[swconfl], tinconf[swconfl]
+               qdr[swconfl], dist[swconfl], np.sqrt(dcpa2[swconfl]), \
+               tcpa[swconfl], tinconf[swconfl]
 
 
 try:
