@@ -43,8 +43,11 @@ def init_plugin():
     stack.stack('ADDWPT UAV001 CG0004 100 30')
     stack.stack('ADDWPT UAV001 CG0404 100 30')
     stack.stack('UAV001 DEST CG0409')
+    stack.stack('ADDWPT UAV002 CG0005 100 30')
+    stack.stack('ADDWPT UAV002 CG0006 100 25')
     stack.stack('ADDWPT UAV003 CG0002 100 29')
     stack.stack('ADDWPT UAV003 CG0004 100 29')
+    stack.stack('UAV003 DEST CG0008')
     stack.stack('POS UAV001')
     stack.stack('PAN UAV001')
     stack.stack('ZOOM 20')
@@ -107,6 +110,7 @@ class SpeedBased(ConflictResolution):
 
     @property
     def tasactive(self):
+        """ Speed-based only """
         return True * super().tasactive
 
     @property
@@ -179,7 +183,6 @@ class SpeedBased(ConflictResolution):
         drel = np.array([np.sin(qdr) * dist,
                          np.cos(qdr) * dist,
                          intruder.alt[idx2] - ownship.alt[idx1]])
-        mag_drel = np.linalg.norm(drel)
 
         # Write velocities as vectors and find relative velocity vector.
         v1 = np.array([ownship.gseast[idx1], ownship.gsnorth[idx1], ownship.vs[idx1]])
@@ -215,26 +218,17 @@ class SpeedBased(ConflictResolution):
                 if time_to_los < 0:
                     raise ValueError('Loss of separation!')
 
-                # a * 0 + b = v1
-                # a * time_to_los + b = v2
-                # scale_factor = - mag_vrel / time_to_los
-                # decelerate_dv = scale_factor * settings.asas_dt
-                # decelerate_factor = decelerate_dv / mag_v1
-
-                original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
-
                 # a * original_detection_dist + b = ownship.ap.tas
                 # a * s_h + b = v2
+                original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
                 scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
                 correction_factor = mag_v2 - scale_factor * s_h
                 resolution_spd = scale_factor * dist + correction_factor
                 decelerate_factor = 1 - resolution_spd / mag_v1
 
-                ownship_acid = ownship.id[idx1]
-                intruder_acid = intruder.id[idx2]
-                # Decelerate factor.
                 if resolution_spd > ownship.ap.tas[idx1]:
                     raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
+                                     f'current_spd={mag_v1}' +
                                      f'resolution_spd={resolution_spd}')
                 return -v1 * decelerate_factor, idx1
             else:
