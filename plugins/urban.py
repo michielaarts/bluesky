@@ -4,7 +4,7 @@ import numpy as np
 # Import the global bluesky objects. Uncomment the ones you need
 from bluesky import navdb, core, stack, traf, settings, sim, scr, tools
 from bluesky.core import Entity
-from bluesky.traffic.asas import ConflictResolution
+from bluesky.traffic.asas import ConflictResolution, ConflictDetection
 from bluesky.tools.aero import nm
 
 
@@ -22,6 +22,8 @@ def init_plugin():
     t_l = 60.
 
     load_city_grid(N_ROWS, N_COLS, km_to_lon(HORIZONTAL_SEPARATION_KM, 0), km_to_lat(VERTICAL_SEPARATION_KM))
+
+    ospeed = OriginalSpeed()
 
     # Turn on Speed-based conflict resolution
     stack.stack('ASAS ON')
@@ -83,9 +85,37 @@ def load_city_grid(n_rows: int, n_cols: int, row_sep: float, col_sep: float):
                              wptype='citygrid')
 
 
+class OriginalSpeed(Entity):
+    def __init__(self):
+        super().__init__()
+        with self.settrafarrays():
+            self.original_tas = np.array([])
+
+    def create(self, n=1):
+        super().create(n)
+        self.original_tas[-n:] = traf.tas[-n:]
+
+
 class SpeedBased(ConflictResolution):
     def __init__(self):
         super().__init__()
+        self.behind_angle = np.deg2rad(10)
+
+    @property
+    def hdgactive(self):
+        return False * super().hdgactive
+
+    @property
+    def tasactive(self):
+        return True * super().tasactive
+
+    @property
+    def altactive(self):
+        return False * super().altactive
+
+    @property
+    def vsactive(self):
+        return False * super().vsactive
 
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
@@ -164,51 +194,53 @@ class SpeedBased(ConflictResolution):
         dcpa = drel + vrel * tcpa
         mag_dcpa = np.linalg.norm(dcpa)
 
-        # Angle between bearing and own speed.
-        approach_angle = (np.deg2rad(ownship.trk[idx1]) - qdr) % (2 * np.pi)
+        # Angle between both tracks
+        track_angle = np.deg2rad(abs(ownship.trk[idx1] - intruder.trk[idx2]))
 
         # Angle between cpa and ownship track.
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
         # Check if flying in same direction
-        behind_angle = np.deg2rad(10)
-        if approach_angle < behind_angle or approach_angle > 2 * np.pi - behind_angle:
-            # Ownship coming from behind, needs to decelerate to intruder speed.
-            # Within distance drel - 2S_h, as approaching still beneficial.
+        if track_angle < self.behind_angle:
+            # Check if coming from behind (bearing and speed should be in opposite directions
+            qdr_trk_angle = abs(np.deg2rad(ownship.trk[idx1]) - qdr)
+            if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
+                # Ownship coming from behind, needs to decelerate to intruder speed.
+                # Within distance drel - 2S_h, as approaching still beneficial.
 
-            # Time to LoS
-            t_s_h = s_h / mag_v2
-            time_to_los = tcpa - t_s_h
-            if time_to_los < 0:
-                raise ValueError('Loss of separation!')
+                # Time to LoS
+                t_s_h = s_h / mag_v2
+                time_to_los = tcpa - t_s_h
+                if time_to_los < 0:
+                    raise ValueError('Loss of separation!')
 
-            # a * 0 + b = v1
-            # a * time_to_los + b = v2
-            # scale_factor = - mag_vrel / time_to_los
-            # decelerate_dv = scale_factor * settings.asas_dt
-            # decelerate_factor = decelerate_dv / mag_v1
+                # a * 0 + b = v1
+                # a * time_to_los + b = v2
+                # scale_factor = - mag_vrel / time_to_los
+                # decelerate_dv = scale_factor * settings.asas_dt
+                # decelerate_factor = decelerate_dv / mag_v1
 
-            original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
+                original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
 
-            # a * original_detection_dist + b = ownship.ap.tas
-            # a * s_h + b = v2
-            scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
-            correction_factor = mag_v2 - scale_factor * s_h
-            resolution_spd = scale_factor * dist + correction_factor
-            decelerate_factor = 1 - resolution_spd / mag_v1
+                # a * original_detection_dist + b = ownship.ap.tas
+                # a * s_h + b = v2
+                scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
+                correction_factor = mag_v2 - scale_factor * s_h
+                resolution_spd = scale_factor * dist + correction_factor
+                decelerate_factor = 1 - resolution_spd / mag_v1
 
-            ownship_acid = ownship.id[idx1]
-            intruder_acid = intruder.id[idx2]
-            # Decelerate factor.
-            if resolution_spd > ownship.ap.tas[idx1]:
-                raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
-                                 f'resolution_spd={resolution_spd}')
-            return -v1 * decelerate_factor, idx1
-        elif np.pi - behind_angle < approach_angle < np.pi + behind_angle:
-            # Intruder must resolve conflict from behind.
-            # Do nothing.
-            return v1 * 0., idx1
+                ownship_acid = ownship.id[idx1]
+                intruder_acid = intruder.id[idx2]
+                # Decelerate factor.
+                if resolution_spd > ownship.ap.tas[idx1]:
+                    raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
+                                     f'resolution_spd={resolution_spd}')
+                return -v1 * decelerate_factor, idx1
+            else:
+                # Intruder must resolve conflict from behind.
+                # Do nothing.
+                return v1 * 0., idx1
         elif np.pi / 2 < cpa_angle < 3 * np.pi / 2:
             # Intruder must resolve crossing conflict.
             # Do nothing.
@@ -226,4 +258,4 @@ class SpeedBased(ConflictResolution):
         else:
             raise ValueError(f'Something went wrong in speed_based(),\n' +
                              f'cpa_angle={cpa_angle},\n' +
-                             f'app_angle={approach_angle}')
+                             f'trk_angle={track_angle}')
