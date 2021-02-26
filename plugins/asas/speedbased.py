@@ -20,6 +20,7 @@ class SpeedBased(ConflictResolution):
     def __init__(self):
         super().__init__()
         self.behind_angle = np.deg2rad(10)
+        self.behind_ratio = 0.9
 
     @property
     def hdgactive(self):
@@ -129,24 +130,33 @@ class SpeedBased(ConflictResolution):
                 # Ownship coming from behind, needs to decelerate to intruder speed.
                 # Within distance drel - 2S_h, as approaching still beneficial.
 
-                # Time to LoS
-                t_s_h = s_h / mag_v2
-                time_to_los = tcpa - t_s_h
-                if time_to_los < 0:
-                    raise ValueError('Loss of separation!')
-
-                # a * original_detection_dist + b = ownship.ap.tas
-                # a * s_h + b = v2
-                original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
-                scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
-                correction_factor = mag_v2 - scale_factor * s_h
-                resolution_spd = scale_factor * dist + correction_factor
+                distance_to_conflict = dist - conf.rpz
+                time_to_conflict = conf.dtlookahead * self.behind_ratio
+                vrel_to_conflict = distance_to_conflict / time_to_conflict
+                resolution_spd = mag_v2 + vrel_to_conflict
                 decelerate_factor = 1 - resolution_spd / mag_v1
 
+                # --- OLD VERSION ---
+                # Time to LoS
+                # t_s_h = s_h / mag_v2
+                # time_to_los = tcpa - t_s_h
+                # if time_to_los < 0:
+                #     raise ValueError('Loss of separation!')
+                #
+                # # a * original_detection_dist + b = ownship.ap.tas
+                # # a * s_h + b = v2
+                # original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
+                # scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
+                # correction_factor = mag_v2 - scale_factor * s_h
+                # resolution_spd = scale_factor * dist + correction_factor
+                # decelerate_factor = 1 - resolution_spd / mag_v1
+
                 if resolution_spd > ownship.ap.tas[idx1]:
-                    raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
-                                     f'current_spd={mag_v1}' +
-                                     f'resolution_spd={resolution_spd}')
+                    # Accelerating, do nothing
+                    return v1 * 0, idx1
+                    # raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
+                    #                  f'current_spd={mag_v1}' +
+                    #                  f'resolution_spd={resolution_spd}')
                 return -v1 * decelerate_factor, idx1
             else:
                 # Intruder must resolve conflict from behind.
