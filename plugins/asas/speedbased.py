@@ -22,32 +22,45 @@ class SpeedBased(ConflictResolution):
         self.behind_angle = np.deg2rad(10)
         self.behind_ratio = 0.9
 
+        with self.settrafarrays():
+            # If leading aircraft in all conflicts, then tasactive should be false.
+            self.is_leading = np.array([], dtype=bool)
+            self.in_conflict = np.array([], dtype=bool)
+
     @property
     def hdgactive(self):
-        return False * super().hdgactive
+        return False * self.active
 
     @property
     def tasactive(self):
-        """ Speed-based only """
-        return True * super().tasactive
+        """ Speed-based only, all following aircraft need tasactive True. """
+        return ~self.is_leading & self.in_conflict
 
     @property
     def altactive(self):
-        return False * super().altactive
+        return False * self.active
 
     @property
     def vsactive(self):
-        return False * super().vsactive
+        return False * self.active
 
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
         # Initialize an array to store the resolution velocity vector for all A/C
         dv = np.zeros((ownship.ntraf, 3))
 
+        # Reset all is_leading and in_conflict
+        self.is_leading[:] = True
+        self.in_conflict[:] = False
+
         # Call speed_based function to resolve conflicts
         for ((ac1, ac2), qdr, dist, tcpa, tLOS) in zip(conf.confpairs, conf.qdr, conf.dist, conf.tcpa, conf.tLOS):
             idx1 = ownship.id.index(ac1)
             idx2 = intruder.id.index(ac2)
+
+            # Flag aircraft to be in conflict
+            self.in_conflict[idx1] = True
+            self.in_conflict[idx2] = True
 
             # If A/C indexes are found, then apply speed_based on this conflict pair
             # Because ADSB is ON, this is done for each aircraft separately
@@ -128,8 +141,9 @@ class SpeedBased(ConflictResolution):
             qdr_trk_angle = abs(np.deg2rad(ownship.trk[idx1]) - qdr)
             if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
                 # Ownship coming from behind, needs to decelerate to intruder speed.
-                # Within distance drel - 2S_h, as approaching still beneficial.
+                self.is_leading[idx1] = False
 
+                # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
                 distance_to_conflict = dist - conf.rpz
                 time_to_conflict = conf.dtlookahead * self.behind_ratio
                 vrel_to_conflict = distance_to_conflict / time_to_conflict
@@ -168,6 +182,8 @@ class SpeedBased(ConflictResolution):
             return v1 * 0., idx1
         elif cpa_angle < np.pi / 2 or cpa_angle > 3 * np.pi / 2:
             # Ownship must resolve crossing conflict.
+            self.is_leading[idx1] = False
+
             # Calculate cosine angle.
             cos_angle = np.arccos(np.dot(v2, vrel) / (mag_v2 * mag_vrel))
 
