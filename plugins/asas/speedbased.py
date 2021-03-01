@@ -1,4 +1,4 @@
-""" Urban environment speed-based CR """
+""" Urban environment speed-based CR algorithm """
 import numpy as np
 from bluesky.traffic.asas import ConflictResolution
 
@@ -19,11 +19,15 @@ def init_plugin():
 class SpeedBased(ConflictResolution):
     def __init__(self):
         super().__init__()
+        # Set behind_angle and behind_ratio to handle in-airway speed-based conflicts.
+        # Behind_angle is the maximum track angle difference between two aircraft
+        # for them to be in an in-airway conflict.
+        # Behind_ratio is the ratio of dtlookahead that the following aircraft will use in its conflict resolution.
         self.behind_angle = np.deg2rad(10)
         self.behind_ratio = 0.9
 
         with self.settrafarrays():
-            # If leading aircraft in all conflicts, then tasactive should be false.
+            # Initialize is_leading and in_conflict traffic arrays.
             self.is_leading = np.array([], dtype=bool)
             self.in_conflict = np.array([], dtype=bool)
 
@@ -33,7 +37,7 @@ class SpeedBased(ConflictResolution):
 
     @property
     def tasactive(self):
-        """ Speed-based only, all following aircraft need tasactive True. """
+        """ Speed-based only, all aircraft in conflict that are not leading need tasactive True """
         return ~self.is_leading & self.in_conflict
 
     @property
@@ -46,25 +50,25 @@ class SpeedBased(ConflictResolution):
 
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
-        # Initialize an array to store the resolution velocity vector for all A/C
+        # Initialize an array to store the resolution velocity vector for all A/C.
         dv = np.zeros((ownship.ntraf, 3))
 
-        # Reset all is_leading and in_conflict
+        # Reset all is_leading and in_conflict flags.
         self.is_leading[:] = True
         self.in_conflict[:] = False
 
-        # Call speed_based function to resolve conflicts
+        # Call speed_based function to resolve conflicts.
         for ((ac1, ac2), qdr, dist, tcpa, tLOS) in zip(conf.confpairs, conf.qdr, conf.dist, conf.tcpa, conf.tLOS):
             idx1 = ownship.id.index(ac1)
             idx2 = intruder.id.index(ac2)
 
-            # Flag aircraft to be in conflict
+            # Flag aircraft to be in conflict.
             self.in_conflict[idx1] = True
             self.in_conflict[idx2] = True
 
-            # If A/C indexes are found, then apply speed_based on this conflict pair
-            # Because ADSB is ON, this is done for each aircraft separately
-            # However, only one aircraft will resolve the conflict
+            # If A/C indexes are found, then apply speed_based on this conflict pair.
+            # Because ADSB is ON, this is done for each aircraft separately.
+            # However, only one aircraft will resolve the conflict.
             if idx1 > -1 and idx2 > -1:
                 dv_v, idx = self.speed_based(ownship, intruder, conf, qdr, dist, tcpa, tLOS, idx1, idx2)
 
@@ -74,31 +78,31 @@ class SpeedBased(ConflictResolution):
                 if new_dv_magnitude > current_dv_magnitude:
                     dv[idx] += dv_v
 
-        # Resolution vector for all aircraft, cartesian coordinates
+        # Resolution vector for all aircraft, cartesian coordinates.
         dv = np.transpose(dv)
 
-        # The old speed vector, cartesian coordinates
+        # The old speed vector, cartesian coordinates.
         v = np.array([ownship.gseast, ownship.gsnorth, ownship.vs])
 
-        # The new speed vector, cartesian coordinates
+        # The new speed vector, cartesian coordinates.
         newv = v + dv
 
-        # Limit resolution direction if required
+        # Limit resolution direction if required.
         newtrack = ownship.trk
         newgs = np.sqrt(newv[0, :] ** 2 + newv[1, :] ** 2)
         newvs = ownship.vs
 
-        # Cap the velocity
+        # Cap the velocity.
         newgscapped = np.maximum(ownship.perf.vmin, np.minimum(ownship.perf.vmax, newgs))
 
-        # Cap the vertical speed
+        # Cap the vertical speed.
         vscapped = np.maximum(ownship.perf.vsmin, np.minimum(ownship.perf.vsmax, newvs))
 
         return newtrack, newgscapped, vscapped, ownship.selalt
 
     def speed_based(self, ownship, intruder, conf, qdr, dist, tcpa, tLOS, idx1, idx2):
-        """Constrained speed-based resolution algorithm"""
-        # Preliminary calculations
+        """ Constrained environment speed-based resolution algorithm """
+        # Preliminary calculations.
 
         if tcpa < 0:
             # Closest point already passed. Do nothing.
@@ -107,8 +111,8 @@ class SpeedBased(ConflictResolution):
         if ownship != intruder:
             raise ValueError('ownship != intruder ??\n', ownship.tas, intruder.tas)
 
-        # Convert qdr from degrees to radians.
-        qdr = np.deg2rad(qdr)  # Bearing.
+        # Convert bearing from degrees to radians.
+        qdr = np.deg2rad(qdr)
 
         # Relative position vector between id1 and id2.
         drel = np.array([np.sin(qdr) * dist,
@@ -128,49 +132,32 @@ class SpeedBased(ConflictResolution):
         dcpa = drel + vrel * tcpa
         mag_dcpa = np.linalg.norm(dcpa)
 
-        # Angle between both tracks
+        # Difference between both track angles.
         track_angle = np.deg2rad(abs(ownship.trk[idx1] - intruder.trk[idx2]))
 
         # Angle between cpa and ownship track.
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
-        # Check if flying in same direction
+        # Check if flying in-airway.
         if track_angle < self.behind_angle:
-            # Check if coming from behind (bearing and speed should be in opposite directions
-            qdr_trk_angle = abs(np.deg2rad(ownship.trk[idx1]) - qdr)
+            # Check if approaching from behind (bearing and speed should be in equal directions).
+            qdr_trk_angle = (np.deg2rad(ownship.trk[idx1]) - qdr) % (2 * np.pi)
             if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
-                # Ownship coming from behind, needs to decelerate to intruder speed.
+                # Ownship approaching from behind, needs to decelerate to intruder speed.
                 self.is_leading[idx1] = False
 
                 # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
+                # Approach such that the time_to_conflict becomes dtlookahead * behind_ratio.
                 distance_to_conflict = dist - conf.rpz
                 time_to_conflict = conf.dtlookahead * self.behind_ratio
                 vrel_to_conflict = distance_to_conflict / time_to_conflict
                 resolution_spd = mag_v2 + vrel_to_conflict
                 decelerate_factor = 1 - resolution_spd / mag_v1
 
-                # --- OLD VERSION ---
-                # Time to LoS
-                # t_s_h = s_h / mag_v2
-                # time_to_los = tcpa - t_s_h
-                # if time_to_los < 0:
-                #     raise ValueError('Loss of separation!')
-                #
-                # # a * original_detection_dist + b = ownship.ap.tas
-                # # a * s_h + b = v2
-                # original_detection_dist = conf.dtlookahead * ownship.ap.tas[idx1]
-                # scale_factor = (ownship.ap.tas[idx1] - mag_v2) / (original_detection_dist - s_h)
-                # correction_factor = mag_v2 - scale_factor * s_h
-                # resolution_spd = scale_factor * dist + correction_factor
-                # decelerate_factor = 1 - resolution_spd / mag_v1
-
                 if resolution_spd > ownship.ap.tas[idx1]:
-                    # Accelerating, do nothing
+                    # Acceleration advised, do nothing.
                     return v1 * 0, idx1
-                    # raise ValueError(f'Something went wrong in speed_based(), accelerating {ownship.id[idx1]}!\n' +
-                    #                  f'current_spd={mag_v1}' +
-                    #                  f'resolution_spd={resolution_spd}')
                 return -v1 * decelerate_factor, idx1
             else:
                 # Intruder must resolve conflict from behind.
