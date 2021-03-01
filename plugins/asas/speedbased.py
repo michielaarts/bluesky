@@ -27,44 +27,41 @@ class SpeedBased(ConflictResolution):
         self.behind_ratio = 0.9
 
         with self.settrafarrays():
-            # Initialize is_leading and in_conflict traffic arrays.
+            # Initialize is_leading traffic array.
             self.is_leading = np.array([], dtype=bool)
-            self.in_conflict = np.array([], dtype=bool)
 
     @property
     def hdgactive(self):
-        return False * self.active
+        """ Heading inactive """
+        return np.zeros(self.active.shape, dtype=bool)
 
     @property
     def tasactive(self):
         """ Speed-based only, all aircraft in conflict that are not leading need tasactive True """
-        return ~self.is_leading & self.in_conflict
+        return ~self.is_leading & self.active
 
     @property
     def altactive(self):
-        return False * self.active
+        """ Altitude inactive """
+        return np.zeros(self.active.shape, dtype=bool)
 
     @property
     def vsactive(self):
-        return False * self.active
+        """ Vertical speed inactive """
+        return np.zeros(self.active.shape, dtype=bool)
 
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
         # Initialize an array to store the resolution velocity vector for all A/C.
         dv = np.zeros((ownship.ntraf, 3))
 
-        # Reset all is_leading and in_conflict flags.
+        # Reset all is_leading flags.
         self.is_leading[:] = True
-        self.in_conflict[:] = False
 
         # Call speed_based function to resolve conflicts.
         for ((ac1, ac2), qdr, dist, tcpa, tLOS) in zip(conf.confpairs, conf.qdr, conf.dist, conf.tcpa, conf.tLOS):
             idx1 = ownship.id.index(ac1)
             idx2 = intruder.id.index(ac2)
-
-            # Flag aircraft to be in conflict.
-            self.in_conflict[idx1] = True
-            self.in_conflict[idx2] = True
 
             # If A/C indexes are found, then apply speed_based on this conflict pair.
             # Because ADSB is ON, this is done for each aircraft separately.
@@ -163,7 +160,7 @@ class SpeedBased(ConflictResolution):
                 # Intruder must resolve conflict from behind.
                 # Do nothing.
                 return v1 * 0., idx1
-        elif np.pi / 2 < cpa_angle < 3 * np.pi / 2:
+        elif np.pi / 2 <= cpa_angle <= 3 * np.pi / 2:
             # Intruder must resolve crossing conflict.
             # Do nothing.
             return v1 * 0., idx1
