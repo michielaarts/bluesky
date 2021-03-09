@@ -1,4 +1,10 @@
-""" Urban environment speed-based CR algorithm """
+"""
+Urban environment speed-based CR algorithm.
+Note: decelerating only
+TODO Update for 3D conflicts
+
+Created by Michiel Aarts - March 2021
+"""
 import numpy as np
 from bluesky.traffic.asas import ConflictResolution
 
