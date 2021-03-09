@@ -135,7 +135,7 @@ class Navdatabase:
         # Update screen info
         # TODO Errors when screen not fully loaded yet
         #  (e.g. when loading waypoints with a plugin included in settings.cfg)
-        # bs.scr.addnavwpt(name.upper(),lat,lon)
+        bs.scr.addnavwpt(name.upper(), lat, lon)
 
         return True,name.upper()+" added to navdb."
 
