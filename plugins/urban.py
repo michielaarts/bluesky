@@ -6,8 +6,6 @@ from bluesky import navdb, stack  # traf, core, settings, sim, scr, tools
 from bluesky.tools.aero import nm
 from bluesky.core import Entity
 import random
-import matplotlib.pyplot as plt
-
 
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
@@ -20,7 +18,7 @@ def init_plugin():
     S_h = 100 / nm
     t_l = 60.
 
-    urban_grid = UrbanGrid(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
+    urban_grid = UrbanGrid(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM, load_grid=True)
 
     # Test.
     # max_turns = 0
@@ -96,7 +94,7 @@ def init_plugin():
 
 
 class UrbanGrid(Entity):
-    def __init__(self, n_rows: int, n_cols: int, grid_width: float, grid_height: float):
+    def __init__(self, n_rows: int, n_cols: int, grid_width: float, grid_height: float, load_grid: bool = False):
         """
         Instantiates an orthogonal grid at location (0, 0).
 
@@ -104,6 +102,7 @@ class UrbanGrid(Entity):
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
         :param grid_width: Distance in kilometers between two longitudinal nodes
         :param grid_height: Distance in kilometers between two lateral nodes
+        :param load_grid: Loads the grid as waypoints in BlueSky (default: false)
         """
         super().__init__()
         self.n_rows = n_rows
@@ -117,10 +116,16 @@ class UrbanGrid(Entity):
 
         self.nodes = {}
         self.edges = {}
+        self.all_nodes = []
+        self.center_node = None
+
+        self._calculated_avg = None
 
         self.create_nodes()
         self.load_edges()
-        self.load_city_grid()
+
+        if load_grid:
+            self.load_city_grid()
 
     @staticmethod
     def km_to_lat(v_sep: float) -> float:
@@ -171,6 +176,8 @@ class UrbanGrid(Entity):
                     self.nodes[node] = {'lat': lat, 'lon': lon,
                                         'dir': ns + ew,
                                         'row_id': row_id, 'col_id': col_id}
+        self.all_nodes = list(self.nodes.keys())
+        self.center_node = self.all_nodes[round(len(self.all_nodes) / 2)]
 
     def load_edges(self) -> None:
         """
@@ -188,25 +195,29 @@ class UrbanGrid(Entity):
             for dir in self.nodes[node]['dir']:
                 if dir == 'N':
                     hdg = 0.
+                    length = self.grid_height
                     target_row_id = str(row + 1).zfill(self.name_length)
                     target = f'CG{target_row_id}{col_id}'
                 elif dir == 'E':
                     hdg = 90.
+                    length = self.grid_width
                     target_col_id = str(col + 1).zfill(self.name_length)
                     target = f'CG{row_id}{target_col_id}'
                 elif dir == 'S':
                     hdg = 180.
+                    length = self.grid_height
                     target_row_id = str(row - 1).zfill(self.name_length)
                     target = f'CG{target_row_id}{col_id}'
                 elif dir == 'W':
                     hdg = 270.
+                    length = self.grid_width
                     target_col_id = str(col - 1).zfill(self.name_length)
                     target = f'CG{row_id}{target_col_id}'
                 else:
                     raise Exception(f'Something went wrong, dir={dir}')
                 # Check if node exists
                 if target in self.nodes.keys():
-                    self.edges[node][target] = {'length': 1, 'hdg': hdg}
+                    self.edges[node][target] = {'length': length, 'hdg': hdg}
 
     def load_city_grid(self) -> None:
         """
@@ -327,3 +338,23 @@ class UrbanGrid(Entity):
         path = path[::-1]
 
         return path, pathlength, path_alt_variatons, path_turns
+
+    @property
+    def avg_route_length(self) -> float:
+        """
+        The average route length through the grid.
+
+        :return: avg_route_length: float
+        """
+        if self._calculated_avg is None:
+            # Calculate average route length.
+            pathlengths = np.zeros(1000)
+            for i in range(len(pathlengths)):
+                origin = random.choice(list(self.nodes.keys()))
+                destination = origin
+                while destination == origin:
+                    destination = random.choice(list(self.nodes.keys()))
+                _, pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
+            self._calculated_avg = float(np.mean(pathlengths))
+
+        return self._calculated_avg
