@@ -25,15 +25,15 @@ allloggers = dict()
 
 
 @command(name='CRELOG')
-def crelogstack(name:'txt', dt:float=None, header:'string'=''):
-    ''' Create a new data logger.
-    
+def crelogstack(name: 'txt', dt: float = None, header: 'string' = ''):
+    """ Create a new data logger.
+
         Arguments:
         - name: The name of the logger
         - dt: The logging time interval. When a value is given for dt
               this becomes a periodic logger.
         - header: A header text to put at the top of each log file
-    '''
+    """
     if name in allloggers:
         return False, f'Logger {name} already exists'
 
@@ -42,7 +42,7 @@ def crelogstack(name:'txt', dt:float=None, header:'string'=''):
 
 
 def crelog(name, dt=None, header=''):
-    ''' Create a new logger. '''
+    """ Create a new logger. """
     allloggers[name] = allloggers.get(name, CSVLogger(name, dt or 0.0, header))
     if dt:
         periodicloggers[name] = allloggers[name]
@@ -112,7 +112,7 @@ class CSVLogger:
         # Register a command for this logger in the stack
         stackcmd = {name: [
             name + ' ON/OFF,[dt] or ADD [FROM parent] var1,...,varn',
-            '[txt,float/word,...]', self.stackio, name+" data logging on"]
+            '[txt,float/word,...]', self.stackio, name + " data logging on"]
         }
         stack.append_commands(stackcmd)
 
@@ -188,9 +188,11 @@ class CSVLogger:
             # log the data to file
             np.savetxt(self.file, np.vstack(txtdata).T,
                        delimiter=',', newline='\n', fmt='%s')
+        else:
+            raise IOError(f'Tried to log {self.name} in a closed file')
 
     def start(self):
-        ''' Start this logger. '''
+        """ Start this logger. """
         self.tlog = bs.sim.simt
         self.open(makeLogfileName(self.name))
 

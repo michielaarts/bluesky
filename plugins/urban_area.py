@@ -13,7 +13,7 @@ from bluesky.core import Entity, timed_function
 from bluesky.tools.aero import ft, fpm
 
 # Log parameters for the flight statistics log
-flstheader = \
+flst_header = \
     '#######################################################\n' + \
     'FLST LOG\n' + \
     'Flight Statistics\n' + \
@@ -32,30 +32,30 @@ flstheader = \
     'TAS [m/s], ' + \
     'Vertical Speed [fpm], ' + \
     'Heading [deg], ' + \
-    'Origin Lat [deg], ' + \
-    'Origin Lon [deg], ' + \
-    'Destination Lat [deg], ' + \
-    'Destination Lon [deg], ' + \
     'ASAS Active [bool], ' + \
     'Pilot ALT [ft], ' + \
     'Pilot SPD (TAS) [m/s], ' + \
     'Pilot HDG [deg], ' + \
     'Pilot VS [fpm]' + '\n'
 
-flstvars = 't, arrival_time, callsign, departure_time, flight_time, dist2D, dist3D, work_done, lat, lon, alt, tas,' \
-           ' vs, hdg, origin_lat, origin_lon, destination_lat, destination_lon, asas, apalt, aptas, aphdg, apvs\n'
+flst_vars = 'arrival_time, callsign, departure_time, flight_time, dist2D, dist3D, work_done, lat, lon, alt, tas,' \
+           'vs, hdg, asas, apalt, aptas, aphdg, apvs\n'
 
-confheader = \
+conf_header = \
     '#######################################################\n' + \
     '# CONF LOG\n' + \
     '# Conflict Statistics\n' + \
     '#######################################################\n\n' + \
     'Parameters [Units]:\n' + \
     'Simulation time [s], ' + \
-    'Total number of conflicts in exp area [-], ' + \
-    'Total number of losses of separation in exp area [-]\n'
+    'Inst. number of aircraft [-], ' + \
+    'Inst. number of conflicts [-], ' + \
+    'Inst. number of losses of separation [-], ' + \
+    'Total number of aircraft [-], ' + \
+    'Total number of conflicts [-], ' + \
+    'Total number of losses of separation [-]\n'
 
-confvars = 't, nconf, nlos\n'
+conf_vars = 't, ni_ac, ni_conf, ni_los, ntotal_ac, ntotal_conf, ntotal_los\n'
 
 # Global data
 area = None
@@ -83,12 +83,6 @@ def init_plugin():
             '[float/txt,float,float,float,alt,alt]',
             area.set_area,
             'Define experiment area'
-        ],
-        'TAXI': [
-            'TAXI ON/OFF [alt] : OFF auto deletes traffic below 1500 ft',
-            'onoff[,alt]',
-            area.set_taxi,
-            'Switch on/off ground/low altitude mode, prevents auto-delete at 1500 ft'
         ]
     }
     # init_plugin() should always return these two dicts.
@@ -103,15 +97,14 @@ class Area(Entity):
         # Parameters of area
         self.active = False
         self.exp_area = ''
-        self.swtaxi = True  # Default ON: Doesn't do anything. See comments of set_taxi function below.
-        self.swtaxialt = 1500.  # Default alt for TAXI OFF
         self.prevconfpairs = set()
-        self.all_conf = 0
+        self.ntotal_conf = 0
         self.prevlospairs = set()
-        self.all_los = 0
+        self.ntotal_los = 0
+        self.ntotal_ac = 0
 
-        self.flst = datalog.crelog('FLSTLOG', None, flstheader)
-        self.conflog = datalog.crelog('CONFLOG', None, confheader)
+        self.flst_log = datalog.crelog('FLSTLOG', None, flst_header)
+        self.conf_log = datalog.crelog('CONFLOG', None, conf_header)
 
         with self.settrafarrays():
             self.inside_exp = np.array([], dtype=np.bool)  # In experiment area or not
@@ -129,9 +122,7 @@ class Area(Entity):
         super().reset()
         self.active = False
         self.exp_area = ''
-        self.swtaxi = True
-        self.swtaxialt = 1500.
-        self.all_conf = 0
+        self.ntotal_conf = 0
 
     def create(self, n=1):
         """ Create is called when new aircraft are created. """
@@ -139,6 +130,7 @@ class Area(Entity):
         self.oldalt[-n:] = traf.alt[-n:]
         self.inside_exp[-n:] = False
         self.create_time[-n:] = sim.simt
+        self.ntotal_ac += n
 
     @timed_function(name='AREA', dt=1.0)
     def update(self, dt):
@@ -160,20 +152,12 @@ class Area(Entity):
             # present in the previous timestep.
             confpairs_new = list(traf.cd.confpairs_unique - self.prevconfpairs)
             lospairs_new = list(traf.cd.lospairs_unique - self.prevlospairs)
-            if confpairs_new or lospairs_new:
-                # If necessary: select conflict geometry parameters for new conflicts
-                # idxdict = dict((v, i) for i, v in enumerate(traf.cd.confpairs))
-                # idxnew = [idxdict.get(i) for i in confpairs_new]
-                # dcpa_new = np.asarray(traf.cd.dcpa)[idxnew]
-                # tcpa_new = np.asarray(traf.cd.tcpa)[idxnew]
-                # tLOS_new = np.asarray(traf.cd.tLOS)[idxnew]
-                # qdr_new = np.asarray(traf.cd.qdr)[idxnew]
-                # dist_new = np.asarray(traf.cd.dist)[idxnew]
 
-                self.all_conf += len(confpairs_new)
-                self.all_los += len(lospairs_new)
+            self.ntotal_conf += len(confpairs_new)
+            self.ntotal_los += len(lospairs_new)
 
-                self.conflog.log(self.all_conf, self.all_los)
+            self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique), len(traf.cd.lospairs_unique),
+                              self.ntotal_ac, self.ntotal_conf, self.ntotal_los)
 
             self.prevconfpairs = set(traf.cd.confpairs)
             self.prevlospairs = set(traf.cd.lospairs)
@@ -191,38 +175,30 @@ class Area(Entity):
             # Log flight statistics when reaching destination.
             # Upon reaching destination, autopilot switches off the lnav.
             arrived = ~traf.swlnav
-            if np.any(arrived):
-                self.flst.log(
-                    np.array(traf.id)[arrived],
-                    self.create_time[arrived],
-                    sim.simt - self.entrytime[arrived],
-                    (self.distance2D[arrived] - self.dstart2D[arrived]),
-                    (self.distance3D[arrived] - self.dstart3D[arrived]),
-                    (traf.work[arrived] - self.workstart[arrived]) * 1e-6,
-                    traf.lat[arrived],
-                    traf.lon[arrived],
-                    traf.alt[arrived] / ft,
-                    traf.tas[arrived],
-                    traf.vs[arrived] / fpm,
-                    traf.hdg[arrived],
-                    traf.cr.active[arrived],
-                    traf.aporasas.alt[arrived] / ft,
-                    traf.aporasas.tas[arrived],
-                    traf.aporasas.vs[arrived] / fpm,
-                    traf.aporasas.hdg[arrived])
 
-            # Delete all arrived aircraft.
-            delidx = np.flatnonzero(arrived)
-            if len(delidx) > 0:
-                traf.delete(delidx)
-
-        # Autodelete for descending with swTaxi.
-        if not self.swtaxi:
-            delidxalt = np.where((self.oldalt >= self.swtaxialt)
-                                 * (traf.alt < self.swtaxialt))[0]
-            self.oldalt = traf.alt
-            if len(delidxalt) > 0:
-                traf.delete(list(delidxalt))
+            # Log and delete all arrived aircraft.
+            del_idx = np.flatnonzero(arrived)
+            for idx in del_idx:
+                self.flst_log.log(
+                    np.array(traf.id)[idx],
+                    self.create_time[idx],
+                    sim.simt - self.entrytime[idx],
+                    (self.distance2D[idx] - self.dstart2D[idx]),
+                    (self.distance3D[idx] - self.dstart3D[idx]),
+                    (traf.work[idx] - self.workstart[idx]) * 1e-6,
+                    traf.lat[idx],
+                    traf.lon[idx],
+                    traf.alt[idx] / ft,
+                    traf.tas[idx],
+                    traf.vs[idx] / fpm,
+                    traf.hdg[idx],
+                    traf.cr.active[idx],
+                    traf.aporasas.alt[idx] / ft,
+                    traf.aporasas.tas[idx],
+                    traf.aporasas.hdg[idx],
+                    traf.aporasas.vs[idx] / fpm
+                )
+                traf.delete(idx)
 
     def set_area(self, *args):
         """ Set Experiment Area. Aircraft leaving this experiment area raise an error.
@@ -243,10 +219,10 @@ class Area(Entity):
                 self.active = True
 
                 # Initiate the loggers.
-                self.flst.start()
-                self.conflog.start()
-                self.flst.writeline(flstvars)
-                self.conflog.writeline(confvars)
+                self.flst_log.start()
+                self.conf_log.start()
+                self.flst_log.writeline(flst_vars)
+                self.conf_log.writeline(conf_vars)
 
                 return True, f'{msgname} is set to {args[0]}'
             elif args[0][:2] == 'OF':
@@ -254,7 +230,7 @@ class Area(Entity):
                 self.active = False
                 return True, f'{msgname} is switched OFF'
             elif args[0][:2] == 'ON':
-                if not self.name:
+                if not curname:
                     return False, 'No area defined.'
                 else:
                     self.active = True
@@ -270,17 +246,12 @@ class Area(Entity):
             areafilter.defineArea('EXPAREA', 'BOX', args[:4], *args[4:])
 
             # Initiate the loggers.
-            self.flst.start()
-            self.conflog.start()
-            self.flst.writeline(flstvars)
-            self.conflog.writeline(confvars)
+            self.flst_log.start()
+            self.conf_log.start()
+            self.flst_log.writeline(flst_vars)
+            self.conf_log.writeline(conf_vars)
 
             return True, f'{msgname} is ON. Area name is: {self.exp_area}'
         else:
             return False, 'Incorrect arguments\n' + \
                    'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
-
-    def set_taxi(self, flag, alt=1500 * ft):
-        """ Taxi ON/OFF to autodelete below a certain altitude if taxi is off """
-        self.swtaxi = flag  # True =  taxi allowed, False = autodelete below swtaxialt
-        self.swtaxialt = alt

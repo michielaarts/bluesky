@@ -104,7 +104,8 @@ class ScenarioGenerator:
                 prev_origin = origin
                 prev_destination = destination
 
-            scen_dict = {'n_inst': n_i, 'speed': V, 'duration': T,
+            scen_dict = {'n_inst': n_i, 'n_total': n_total,
+                         'speed': V, 'duration': T,
                          's_h': s_h, 't_l': t_l,
                          'scenario': all_ac}
             all_scen.append(scen_dict)
@@ -143,12 +144,12 @@ class ScenarioGenerator:
             with open(filepath / filename, 'w') as f:
                 f.write('# ########################################### #\n')
                 f.write(f'# Scenario: {filename}\n')
-                f.write(f'# Instantaneous number of aircraft: {n_inst}/km2\n')
-                f.write(f'# Speed: {spd}m/s\n')
-                f.write(f'# Duration: {duration}s\n')
-                f.write(f'# Horizontal separation: {scen["s_h"]}m\n')
-                f.write(f'# Look-ahead time: {scen["t_l"]}s\n')
-                f.write(f'# Mean route length: {self.urban_grid.avg_route_length}km\n')
+                f.write(f'# Instantaneous number of aircraft: {n_inst:.0f}\n')
+                f.write(f'# Speed: {spd:.1f}m/s\n')
+                f.write(f'# Duration: {duration:.1f}s\n')
+                f.write(f'# Horizontal separation: {scen["s_h"]:.1f}m\n')
+                f.write(f'# Look-ahead time: {scen["t_l"]:.1f}s\n')
+                f.write(f'# Mean route length: {self.avg_route_length:.1f}m\n')
                 f.write('# ########################################### #\n')
 
                 # Load urban plugin
@@ -183,7 +184,7 @@ class ScenarioGenerator:
 
                     # Write to .scn file.
                     f.write(f'\n# Creating aircraft no. {ac["id"]}\n')
-                    f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} {origin} {hdg} {alt} {spd * kts}\n')
+                    f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} {origin} {hdg} {alt} {spd / kts}\n')
                     f.write(f'{time_string}>ORIG {callsign} {origin}\n')
                     f.write(f'{time_string}>DEST {callsign} {ac["destination"]}\n')
                     for wpt in ac["path"][1:-1]:
@@ -194,9 +195,9 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10., 20.])
-    SPEED = 20.
-    DURATION = np.array([1800., 2000.])
+    N_INST = np.array([10.])
+    SPEED = 10.
+    DURATION = np.array([1800.])
 
     N_ROWS = 19
     N_COLS = N_ROWS
