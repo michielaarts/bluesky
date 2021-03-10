@@ -114,10 +114,17 @@ class UrbanGrid(Entity):
         self.row_sep = self.km_to_lon(self.grid_width)
         self.col_sep = self.km_to_lat(self.grid_height)
 
+        # Variables for the nodes and edges.
         self.nodes = {}
         self.edges = {}
         self.all_nodes = []
         self.center_node = None
+
+        # Variables for the bounding box.
+        self.min_lat = None
+        self.min_lon = None
+        self.max_lat = None
+        self.max_lon = None
 
         self._calculated_avg = None
 
@@ -153,6 +160,7 @@ class UrbanGrid(Entity):
         if (self.n_cols + 1) % 4 != 0:
             raise ValueError(f'Amount of columns should be a multiple of 4, minus 1\nCurrent value: {self.n_cols}')
 
+        self.all_nodes = []
         for row in np.arange(self.n_rows):
             for col in np.arange(self.n_cols):
                 if row % 2 == 0 or col % 2 == 0:
@@ -176,8 +184,16 @@ class UrbanGrid(Entity):
                     self.nodes[node] = {'lat': lat, 'lon': lon,
                                         'dir': ns + ew,
                                         'row_id': row_id, 'col_id': col_id}
-        self.all_nodes = list(self.nodes.keys())
+                    self.all_nodes.append(node)
+
         self.center_node = self.all_nodes[round(len(self.all_nodes) / 2)]
+
+        first_node = self.all_nodes[0]
+        last_node = self.all_nodes[-1]
+        self.min_lat = self.nodes[first_node]['lat']
+        self.min_lon = self.nodes[first_node]['lon']
+        self.max_lat = self.nodes[last_node]['lat']
+        self.max_lon = self.nodes[last_node]['lon']
 
     def load_edges(self) -> None:
         """

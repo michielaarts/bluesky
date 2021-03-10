@@ -2,6 +2,7 @@
 Urban environment speed-based CR algorithm.
 Note: decelerating only
 TODO Update for 3D conflicts
+TODO Prevent decelerating to negative speeds (which some drones are capable of?)
 
 Created by Michiel Aarts - March 2021
 """
