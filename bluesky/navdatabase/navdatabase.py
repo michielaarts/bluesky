@@ -132,8 +132,10 @@ class Navdatabase:
         self.wpfreq.append(0.0)               # frequency [kHz/MHz]
         self.wpdesc.append("Custom waypoint") # description
 
-         # Update screen info
-        bs.scr.addnavwpt(name.upper(),lat,lon)
+        # Update screen info
+        # TODO Errors when screen not fully loaded yet
+        #  (e.g. when loading waypoints with a plugin included in settings.cfg)
+        bs.scr.addnavwpt(name.upper(), lat, lon)
 
         return True,name.upper()+" added to navdb."
 

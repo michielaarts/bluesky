@@ -129,15 +129,19 @@ class Simulation:
 
     def op(self):
         ''' Set simulation state to OPERATE. '''
-        self.syst = time.time()
+        self.syst = time.time() + self.simdt
         self.ffmode = False
+        self.ffstop = None
         self.state = bs.OP
         self.set_dtmult(1.0)
 
     def hold(self):
         ''' Set simulation state to HOLD. '''
-        self.syst = time.time()
+        self.syst = time.time() + self.simdt / self.dtmult
         self.state = bs.HOLD
+        self.ffmode = False
+        self.ffstop = None
+
 
     def reset(self):
         ''' Reset all simulation objects. '''
@@ -159,9 +163,12 @@ class Simulation:
         bs.scr.reset()
         plotter.reset()
 
-    def set_dtmult(self, mult):
-        ''' Set simulation speed multiplier. '''
-        self.dtmult = mult
+    def set_dtmult(self, mult=None):
+        """ Set simulation speed multiplier. """
+        if mult is None:
+            bs.stack.stack(f'ECHO DTMULT: {self.dtmult}')
+        else:
+            self.dtmult = mult
 
     def realtime(self, flag=None):
         if flag is not None:
@@ -175,9 +182,9 @@ class Simulation:
         self.ffstop = (self.simt + nsec) if nsec else None
 
     def benchmark(self, fname='IC', dt=300.0):
-        ''' Run a simulation benchmark.
+        """ Run a simulation benchmark.
             Use scenario given by fname.
-            Run for <dt> seconds. '''
+            Run for <dt> seconds. """
         bs.stack.ic(fname)
         self.bencht  = 0.0  # Start time will be set at next sim cycle
         self.benchdt = dt
