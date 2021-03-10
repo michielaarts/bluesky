@@ -10,7 +10,7 @@ import numpy as np
 import scipy.stats as stats
 import random
 from pathlib import Path
-from bluesky.tools.aero import nm
+from bluesky.tools.aero import nm, kts
 
 
 class ScenarioGenerator:
@@ -148,6 +148,7 @@ class ScenarioGenerator:
                 f.write(f'# Duration: {duration}s\n')
                 f.write(f'# Horizontal separation: {scen["s_h"]}m\n')
                 f.write(f'# Look-ahead time: {scen["t_l"]}s\n')
+                f.write(f'# Mean route length: {self.urban_grid.avg_route_length}km\n')
                 f.write('# ########################################### #\n')
 
                 # Load urban plugin
@@ -182,7 +183,7 @@ class ScenarioGenerator:
 
                     # Write to .scn file.
                     f.write(f'\n# Creating aircraft no. {ac["id"]}\n')
-                    f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} {origin} {hdg} {alt} {spd}\n')
+                    f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} {origin} {hdg} {alt} {spd * kts}\n')
                     f.write(f'{time_string}>ORIG {callsign} {origin}\n')
                     f.write(f'{time_string}>DEST {callsign} {ac["destination"]}\n')
                     for wpt in ac["path"][1:-1]:

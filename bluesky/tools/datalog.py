@@ -116,6 +116,9 @@ class CSVLogger:
         }
         stack.append_commands(stackcmd)
 
+    def writeline(self, line):
+        self.file.write(bytearray(line, 'ascii'))
+
     def setheader(self, header):
         self.header = header.split('\n')
 

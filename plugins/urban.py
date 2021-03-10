@@ -360,7 +360,7 @@ class UrbanGrid(Entity):
         """
         The average route length through the grid.
 
-        :return: avg_route_length: float
+        :return: avg_route_length [km]: float
         """
         if self._calculated_avg is None:
             # Calculate average route length.

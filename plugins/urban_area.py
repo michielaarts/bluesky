@@ -1,12 +1,16 @@
-""" BlueSky area plugin. This plugin can use an area definition to log aircraft and
-    delete aircraft that reach their destination. Statistics on these flights can be
-    logged with the FLSTLOG logger. """
+"""
+BlueSky urban area plugin. Adaptation of area.py.
+This plugin can use an area definition to log aircraft and
+delete aircraft that reach their destination. Statistics on these flights can be
+logged with the FLSTLOG logger.
+
+Created by Michiel Aarts, March 2021
+"""
 import numpy as np
-# Import the global bluesky objects. Uncomment the ones you need
-from bluesky import traf, sim  # , settings, navdb, traf, sim, scr, tools
+from bluesky import traf, sim
 from bluesky.tools import datalog, areafilter
 from bluesky.core import Entity, timed_function
-from bluesky.tools.aero import ft, kts, nm, fpm
+from bluesky.tools.aero import ft, fpm
 
 # Log parameters for the flight statistics log
 flstheader = \
@@ -19,13 +23,13 @@ flstheader = \
     'Call sign [-], ' + \
     'Spawn Time [s], ' + \
     'Flight time [s], ' + \
-    'Actual Distance 2D [nm], ' + \
-    'Actual Distance 3D [nm], ' + \
+    'Actual Distance 2D [m], ' + \
+    'Actual Distance 3D [m], ' + \
     'Work Done [MJ], ' + \
     'Latitude [deg], ' + \
     'Longitude [deg], ' + \
     'Altitude [ft], ' + \
-    'TAS [kts], ' + \
+    'TAS [m/s], ' + \
     'Vertical Speed [fpm], ' + \
     'Heading [deg], ' + \
     'Origin Lat [deg], ' + \
@@ -34,9 +38,12 @@ flstheader = \
     'Destination Lon [deg], ' + \
     'ASAS Active [bool], ' + \
     'Pilot ALT [ft], ' + \
-    'Pilot SPD (TAS) [kts], ' + \
+    'Pilot SPD (TAS) [m/s], ' + \
     'Pilot HDG [deg], ' + \
     'Pilot VS [fpm]' + '\n'
+
+flstvars = 't, arrival_time, callsign, departure_time, flight_time, dist2D, dist3D, work_done, lat, lon, alt, tas,' \
+           ' vs, hdg, origin_lat, origin_lon, destination_lat, destination_lon, asas, apalt, aptas, aphdg, apvs\n'
 
 confheader = \
     '#######################################################\n' + \
@@ -47,6 +54,8 @@ confheader = \
     'Simulation time [s], ' + \
     'Total number of conflicts in exp area [-], ' + \
     'Total number of losses of separation in exp area [-]\n'
+
+confvars = 't, nconf, nlos\n'
 
 # Global data
 area = None
@@ -101,7 +110,6 @@ class Area(Entity):
         self.prevlospairs = set()
         self.all_los = 0
 
-        # The FLST logger
         self.flst = datalog.crelog('FLSTLOG', None, flstheader)
         self.conflog = datalog.crelog('CONFLOG', None, confheader)
 
@@ -143,15 +151,15 @@ class Area(Entity):
 
             # Find out which aircraft are currently inside the experiment area.
             inside_exp = areafilter.checkInside(self.exp_area, traf.lat, traf.lon, traf.alt)
-            if sum(~inside_exp) > 0:
+            if not np.all(inside_exp):
                 raise RuntimeError('An aircraft escaped the experiment area!')
 
             # Count new conflicts and losses of separation.
             # Store statistics for all new conflict pairs, i.e.:
             # Conflict pairs detected in the current timestep that were not yet
             # present in the previous timestep.
-            confpairs_new = list(set(traf.cd.confpairs) - self.prevconfpairs)
-            lospairs_new = list(set(traf.cd.lospairs) - self.prevlospairs)
+            confpairs_new = list(traf.cd.confpairs_unique - self.prevconfpairs)
+            lospairs_new = list(traf.cd.lospairs_unique - self.prevlospairs)
             if confpairs_new or lospairs_new:
                 # If necessary: select conflict geometry parameters for new conflicts
                 # idxdict = dict((v, i) for i, v in enumerate(traf.cd.confpairs))
@@ -162,11 +170,8 @@ class Area(Entity):
                 # qdr_new = np.asarray(traf.cd.qdr)[idxnew]
                 # dist_new = np.asarray(traf.cd.dist)[idxnew]
 
-                newconf_unique = {frozenset(pair) for pair in confpairs_new}
-                newlos_unique = {frozenset(pair) for pair in lospairs_new}
-
-                self.all_conf += len(newconf_unique)
-                self.all_los += len(newlos_unique)
+                self.all_conf += len(confpairs_new)
+                self.all_los += len(lospairs_new)
 
                 self.conflog.log(self.all_conf, self.all_los)
 
@@ -191,18 +196,18 @@ class Area(Entity):
                     np.array(traf.id)[arrived],
                     self.create_time[arrived],
                     sim.simt - self.entrytime[arrived],
-                    (self.distance2D[arrived] - self.dstart2D[arrived]) / nm,
-                    (self.distance3D[arrived] - self.dstart3D[arrived]) / nm,
+                    (self.distance2D[arrived] - self.dstart2D[arrived]),
+                    (self.distance3D[arrived] - self.dstart3D[arrived]),
                     (traf.work[arrived] - self.workstart[arrived]) * 1e-6,
                     traf.lat[arrived],
                     traf.lon[arrived],
                     traf.alt[arrived] / ft,
-                    traf.tas[arrived] / kts,
+                    traf.tas[arrived],
                     traf.vs[arrived] / fpm,
                     traf.hdg[arrived],
                     traf.cr.active[arrived],
                     traf.aporasas.alt[arrived] / ft,
-                    traf.aporasas.tas[arrived] / kts,
+                    traf.aporasas.tas[arrived],
                     traf.aporasas.vs[arrived] / fpm,
                     traf.aporasas.hdg[arrived])
 
@@ -230,18 +235,22 @@ class Area(Entity):
             return True, f'{msgname} is currently ON (name={curname})' if self.active else \
                 f'{msgname} is currently OFF'
 
-        # start by checking if the first argument is a string -> then it is an area name
+        # If the first argument is a string, it is an area name.
         if isinstance(args[0], str) and len(args) == 1:
             if areafilter.hasArea(args[0]):
-                # switch on Area, set it to the shape name
+                # switch on Area, set it to the shape name.
                 self.exp_area = args[0]
-
                 self.active = True
+
+                # Initiate the loggers.
                 self.flst.start()
                 self.conflog.start()
+                self.flst.writeline(flstvars)
+                self.conflog.writeline(confvars)
+
                 return True, f'{msgname} is set to {args[0]}'
             elif args[0][:2] == 'OF':
-                # switch off the area and reset the logger
+                # Switch off the area and reset the logger.
                 self.active = False
                 return True, f'{msgname} is switched OFF'
             elif args[0][:2] == 'ON':
@@ -253,18 +262,23 @@ class Area(Entity):
             else:
                 # Shape name is unknown.
                 return False, 'Shapename unknown. ' + \
-                    'Please create shapename first or shapename is misspelled!'
-        # If first argument is a float -> then make a box with the arguments
+                       'Please create shapename first or shapename is misspelled!'
+        # If first argument is a float, make a box with the arguments.
         if isinstance(args[0], (float, int)) and 4 <= len(args) <= 6:
             self.active = True
             self.exp_area = 'EXPAREA'
             areafilter.defineArea('EXPAREA', 'BOX', args[:4], *args[4:])
+
+            # Initiate the loggers.
             self.flst.start()
             self.conflog.start()
+            self.flst.writeline(flstvars)
+            self.conflog.writeline(confvars)
+
             return True, f'{msgname} is ON. Area name is: {self.exp_area}'
         else:
             return False, 'Incorrect arguments\n' + \
-                'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
+                   'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
 
     def set_taxi(self, flag, alt=1500 * ft):
         """ Taxi ON/OFF to autodelete below a certain altitude if taxi is off """
