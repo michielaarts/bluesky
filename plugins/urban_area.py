@@ -83,6 +83,12 @@ def init_plugin():
             '[float/txt,float,float,float,alt,alt]',
             area.set_area,
             'Define experiment area'
+        ],
+        'CLOSELOG': [
+            'CLOSELOG',
+            '',
+            area.close_log,
+            'Close experiment logs'
         ]
     }
     # init_plugin() should always return these two dicts.
@@ -255,3 +261,8 @@ class Area(Entity):
         else:
             return False, 'Incorrect arguments\n' + \
                    'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
+
+    def close_log(self):
+        datalog.reset()
+        self.reset()
+        return True, 'Logs are closed\nExperiment area set to None.'

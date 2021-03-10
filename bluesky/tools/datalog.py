@@ -2,7 +2,6 @@
 
 # ToDo: Add description in comments
 
-import os
 import numbers
 import itertools
 from datetime import datetime
@@ -100,6 +99,7 @@ class CSVLogger:
     def __init__(self, name, dt, header):
         self.name = name
         self.file = None
+        self.fname = None
         self.dataparents = []
         self.header = header.split('\n')
         self.tlog = 0.0
@@ -194,7 +194,8 @@ class CSVLogger:
     def start(self):
         """ Start this logger. """
         self.tlog = bs.sim.simt
-        self.open(makeLogfileName(self.name))
+        self.fname = makeLogfileName(self.name)
+        self.open(self.fname)
 
     def reset(self):
         self.dt = self.default_dt
