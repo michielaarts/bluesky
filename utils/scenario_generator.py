@@ -195,9 +195,9 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10.])
+    N_INST = np.array([10., 200.])
     SPEED = 10.
-    DURATION = np.array([1800.])
+    DURATION = 1800.
 
     N_ROWS = 19
     N_COLS = N_ROWS

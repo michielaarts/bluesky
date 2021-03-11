@@ -186,7 +186,7 @@ class Area(Entity):
 
             # Log and delete all arrived aircraft.
             del_idx = np.flatnonzero(arrived)
-            for idx in del_idx:
+            for idx in reversed(del_idx):
                 self.flst_log.log(
                     np.array(traf.id)[idx],
                     self.create_time[idx],
