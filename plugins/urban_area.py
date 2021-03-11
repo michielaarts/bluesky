@@ -167,8 +167,8 @@ class Area(Entity):
             self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique), len(traf.cd.lospairs_unique),
                               self.ntotal_ac, self.ntotal_conf, self.ntotal_los)
 
-            self.prevconfpairs = set(traf.cd.confpairs)
-            self.prevlospairs = set(traf.cd.lospairs)
+            self.prevconfpairs = set(traf.cd.confpairs_unique)
+            self.prevlospairs = set(traf.cd.lospairs_unique)
 
             # Register distance values upon entry of experiment area (includes spawning aircraft).
             newentries = np.logical_not(self.inside_exp) * inside_exp

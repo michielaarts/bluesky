@@ -10,7 +10,9 @@ root.destroy()
 
 if len(filenames) == 1:
     data = pd.read_csv(Path(filenames[0]), comment='#', skipinitialspace=True)
+    print(data.head())
 else:
     data = {}
     for fname in filenames:
         data[fname] = pd.read_csv(Path(fname), comment='#', skipinitialspace=True)
+        print(data[fname].head())
