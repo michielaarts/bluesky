@@ -2,83 +2,24 @@
 import numpy as np
 from typing import List, Tuple
 
-from bluesky import navdb, stack  # traf, core, settings, sim, scr, tools
+from bluesky import navdb
 from bluesky.tools.aero import nm
 from bluesky.core import Entity
 import random
+
+N_ROWS = 19
+N_COLS = N_ROWS
+HORIZONTAL_SEPARATION_KM = 0.2
+VERTICAL_SEPARATION_KM = 0.2
+S_h = 100 / nm
+t_l = 60.
+
 
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
 def init_plugin():
     """ Plugin initialisation function. """
-    N_ROWS = 19
-    N_COLS = N_ROWS
-    HORIZONTAL_SEPARATION_KM = 0.2
-    VERTICAL_SEPARATION_KM = 0.2
-    S_h = 100 / nm
-    t_l = 60.
-
-    urban_grid = UrbanGrid(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM, load_grid=True)
-
-    # Test.
-    # max_turns = 0
-    # for i in range(10000):
-    #     origin = random.choice(list(urban_grid.nodes.keys()))
-    #     destination = origin
-    #     while destination == origin:
-    #         destination = random.choice(list(urban_grid.nodes.keys()))
-    #     path, pathlength, path_alt_variatons, path_turns = urban_grid.calculate_shortest_path(origin, destination)
-    #     if path_turns > max_turns:
-    #         max_turns = path_turns
-    #         print(i, path, pathlength, path_alt_variatons, path_turns)
-    #         max_turn_path = path
-    #         max_turn_origin = origin
-    #         max_turn_destination = destination
-    #
-    # fig1, ax1 = plt.subplots(num=1)
-    # all_lat = []
-    # all_lon = []
-    # for node in urban_grid.nodes.keys():
-    #     all_lat.append(urban_grid.nodes[node]['lat'])
-    #     all_lon.append(urban_grid.nodes[node]['lon'])
-    # ax1.scatter(all_lon, all_lat,
-    #             color='k', label='Node')
-    # node_lat = []
-    # node_lon = []
-    # for node in max_turn_path:
-    #     node_lat.append(urban_grid.nodes[node]['lat'])
-    #     node_lon.append(urban_grid.nodes[node]['lon'])
-    # ax1.scatter(node_lon, node_lat,
-    #             color='pink', label='Shortest Path')
-    # ax1.scatter(urban_grid.nodes[max_turn_origin]['lon'], urban_grid.nodes[max_turn_origin]['lat'],
-    #             color='r', label='Origin')
-    # ax1.scatter(urban_grid.nodes[max_turn_destination]['lon'], urban_grid.nodes[max_turn_destination]['lat'],
-    #             color='g', label='Destination')
-    # ax1.legend()
-
-    # # Turn on Speed-based conflict resolution
-    # stack.stack('ASAS ON')
-    # stack.stack('RESO SpeedBased')
-    # stack.stack(f'ZONER {S_h}')
-    # stack.stack(f'DTLOOK {t_l}')
-    #
-    # # Create dummy aircrafts
-    # stack.stack('CRE UAV001 M600 CG0002 90 100 15')
-    # stack.stack('CRE UAV002 M600 CG0000 90 100 30')
-    # stack.stack('CRE UAV003 M600 CG0202 180 100 29')
-    # stack.stack('HOLD')
-    # stack.stack('ADDWPT UAV001 CG0004 100 30')
-    # stack.stack('ADDWPT UAV001 CG0404 100 30')
-    # stack.stack('UAV001 DEST CG0409')
-    # stack.stack('ADDWPT UAV002 CG0005 100 30')
-    # stack.stack('ADDWPT UAV002 CG0006 100 25')
-    # stack.stack('ADDWPT UAV003 CG0002 100 29')
-    # stack.stack('ADDWPT UAV003 CG0004 100 29')
-    # stack.stack('UAV003 DEST CG0008')
-    # stack.stack('POS UAV001')
-    # stack.stack('PAN UAV001')
-    # stack.stack('ZOOM 20')
-    # stack.stack('TRAIL ON')
+    UrbanGrid(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM, load_grid=True)
 
     # Configuration parameters
     config = {
@@ -118,6 +59,7 @@ class UrbanGrid(Entity):
         self.nodes = {}
         self.edges = {}
         self.all_nodes = []
+        self.od_nodes = []
         self.center_node = None
 
         # Variables for the bounding box.
@@ -195,6 +137,12 @@ class UrbanGrid(Entity):
         self.max_lat = self.nodes[last_node]['lat']
         self.max_lon = self.nodes[last_node]['lon']
 
+        # Origin-Destination nodes are all nodes halfway two intersections,
+        # i.e.: all nodes with only one direction.
+        for node in self.all_nodes:
+            if len(self.nodes[node]['dir']) == 1:
+                self.od_nodes.append(node)
+
     def load_edges(self) -> None:
         """
         Determines the unidirectional edges between all nodes,
@@ -208,29 +156,29 @@ class UrbanGrid(Entity):
             col_id = self.nodes[node]['col_id']
             row = int(row_id)
             col = int(col_id)
-            for dir in self.nodes[node]['dir']:
-                if dir == 'N':
+            for direction in self.nodes[node]['dir']:
+                if direction == 'N':
                     hdg = 0.
                     length = self.grid_height
                     target_row_id = str(row + 1).zfill(self.name_length)
                     target = f'CG{target_row_id}{col_id}'
-                elif dir == 'E':
+                elif direction == 'E':
                     hdg = 90.
                     length = self.grid_width
                     target_col_id = str(col + 1).zfill(self.name_length)
                     target = f'CG{row_id}{target_col_id}'
-                elif dir == 'S':
+                elif direction == 'S':
                     hdg = 180.
                     length = self.grid_height
                     target_row_id = str(row - 1).zfill(self.name_length)
                     target = f'CG{target_row_id}{col_id}'
-                elif dir == 'W':
+                elif direction == 'W':
                     hdg = 270.
                     length = self.grid_width
                     target_col_id = str(col - 1).zfill(self.name_length)
                     target = f'CG{row_id}{target_col_id}'
                 else:
-                    raise Exception(f'Something went wrong, dir={dir}')
+                    raise Exception(f'Something went wrong, dir={direction}')
                 # Check if node exists
                 if target in self.nodes.keys():
                     self.edges[node][target] = {'length': length, 'hdg': hdg}
@@ -366,10 +314,10 @@ class UrbanGrid(Entity):
             # Calculate average route length.
             pathlengths = np.zeros(1000)
             for i in range(len(pathlengths)):
-                origin = random.choice(list(self.nodes.keys()))
+                origin = random.choice(self.od_nodes)
                 destination = origin
                 while destination == origin:
-                    destination = random.choice(list(self.nodes.keys()))
+                    destination = random.choice(self.od_nodes)
                 _, pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
             self._calculated_avg = float(np.mean(pathlengths))
 

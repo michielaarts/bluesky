@@ -81,18 +81,18 @@ class ScenarioGenerator:
             departure_times = np.cumsum(stats.expon(scale=1 / spawn_rate).rvs(n_total))
 
             # Calculate origin-destination combinations and routes.
-            all_nodes = list(self.urban_grid.nodes.keys())
+            od_nodes = self.urban_grid.od_nodes
             prev_origin = None
             prev_destination = None
             all_ac = []
             for ac_id in range(len(departure_times)):
-                origin = random.choice(all_nodes)
+                origin = random.choice(od_nodes)
                 while origin == prev_origin:
-                    origin = random.choice(all_nodes)
+                    origin = random.choice(od_nodes)
 
-                destination = random.choice(all_nodes)
+                destination = random.choice(od_nodes)
                 while destination == origin or destination == prev_destination:
-                    destination = random.choice(all_nodes)
+                    destination = random.choice(od_nodes)
 
                 path, path_length, _, _ = self.urban_grid.calculate_shortest_path(origin, destination)
 
@@ -195,7 +195,7 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10., 200.])
+    N_INST = np.array([10., 100., 200.])
     SPEED = 10.
     DURATION = 1800.
 
