@@ -1,8 +1,8 @@
 """
 BlueSky urban area plugin. Adaptation of area.py.
-This plugin can use an area definition to log aircraft and
-delete aircraft that reach their destination. Statistics on these flights can be
-logged with the FLSTLOG logger.
+This plugin defines an experiment area to log aircraft and
+deletes aircraft that reach their destination. Statistics on these flights can be
+logged with the FLSTLOG logger, while the CONFLOG logger logs the conflicts.
 
 Created by Michiel Aarts, March 2021
 """
@@ -64,7 +64,7 @@ area = None
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
 def init_plugin():
-    # Addtional initilisation code
+    # Additional initialization code
     global area
     area = Area()
 
@@ -96,7 +96,7 @@ def init_plugin():
 
 
 class Area(Entity):
-    """ Traffic area: delete traffic when they reach their destination """
+    """ Traffic area: delete traffic when they reach their destination (i.e. when they switch off LNAV) """
 
     def __init__(self):
         super().__init__()
@@ -113,8 +113,7 @@ class Area(Entity):
         self.conf_log = datalog.crelog('CONFLOG', None, conf_header)
 
         with self.settrafarrays():
-            self.inside_exp = np.array([], dtype=np.bool)  # In experiment area or not
-            self.oldalt = np.array([])
+            self.inside_exp = np.array([], dtype=np.bool)  # In experiment area or not.
             self.distance2D = np.array([])
             self.distance3D = np.array([])
             self.dstart2D = np.array([])
@@ -128,12 +127,15 @@ class Area(Entity):
         super().reset()
         self.active = False
         self.exp_area = ''
+        self.prevconfpairs = set()
         self.ntotal_conf = 0
+        self.prevlospairs = set()
+        self.ntotal_los = 0
+        self.ntotal_ac = 0
 
     def create(self, n=1):
         """ Create is called when new aircraft are created. """
         super().create(n)
-        self.oldalt[-n:] = traf.alt[-n:]
         self.inside_exp[-n:] = False
         self.create_time[-n:] = sim.simt
         self.ntotal_ac += n
@@ -179,7 +181,7 @@ class Area(Entity):
             self.inside_exp = inside_exp
 
             # Log flight statistics when reaching destination.
-            # Upon reaching destination, autopilot switches off the lnav.
+            # Upon reaching destination, autopilot switches off the LNAV.
             arrived = ~traf.swlnav
 
             # Log and delete all arrived aircraft.
@@ -212,7 +214,7 @@ class Area(Entity):
         # Set both exp_area and del_area to the same size.
         curname = self.exp_area
         msgname = 'Experiment area'
-        # if all args are empty, then print out the current area status
+        # If no args, print current area state.
         if not args:
             return True, f'{msgname} is currently ON (name={curname})' if self.active else \
                 f'{msgname} is currently OFF'
@@ -220,7 +222,7 @@ class Area(Entity):
         # If the first argument is a string, it is an area name.
         if isinstance(args[0], str) and len(args) == 1:
             if areafilter.hasArea(args[0]):
-                # switch on Area, set it to the shape name.
+                # Switch on area, set it to the shape name.
                 self.exp_area = args[0]
                 self.active = True
 
@@ -263,6 +265,7 @@ class Area(Entity):
                    'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
 
     def close_log(self):
+        """ Close the logfiles. This helps if QUIT does not let the logs finish properly. """
         datalog.reset()
         self.reset()
         return True, 'Logs are closed\nExperiment area set to None.'
