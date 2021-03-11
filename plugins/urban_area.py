@@ -167,9 +167,6 @@ class Area(Entity):
             self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique), len(traf.cd.lospairs_unique),
                               self.ntotal_ac, self.ntotal_conf, self.ntotal_los)
 
-            self.prevconfpairs = set(traf.cd.confpairs_unique)
-            self.prevlospairs = set(traf.cd.lospairs_unique)
-
             # Register distance values upon entry of experiment area (includes spawning aircraft).
             newentries = np.logical_not(self.inside_exp) * inside_exp
             self.dstart2D[newentries] = self.distance2D[newentries]
@@ -177,8 +174,10 @@ class Area(Entity):
             self.workstart[newentries] = traf.work[newentries]
             self.entrytime[newentries] = sim.simt
 
-            # Update inside_exp
+            # Update values for next loop.
             self.inside_exp = inside_exp
+            self.prevconfpairs = set(traf.cd.confpairs_unique)
+            self.prevlospairs = set(traf.cd.lospairs_unique)
 
             # Log flight statistics when reaching destination.
             # Upon reaching destination, autopilot switches off the LNAV.
@@ -186,27 +185,26 @@ class Area(Entity):
 
             # Log and delete all arrived aircraft.
             del_idx = np.flatnonzero(arrived)
-            for idx in reversed(del_idx):
-                self.flst_log.log(
-                    np.array(traf.id)[idx],
-                    self.create_time[idx],
-                    sim.simt - self.entrytime[idx],
-                    (self.distance2D[idx] - self.dstart2D[idx]),
-                    (self.distance3D[idx] - self.dstart3D[idx]),
-                    (traf.work[idx] - self.workstart[idx]) * 1e-6,
-                    traf.lat[idx],
-                    traf.lon[idx],
-                    traf.alt[idx] / ft,
-                    traf.tas[idx],
-                    traf.vs[idx] / fpm,
-                    traf.hdg[idx],
-                    traf.cr.active[idx],
-                    traf.aporasas.alt[idx] / ft,
-                    traf.aporasas.tas[idx],
-                    traf.aporasas.hdg[idx],
-                    traf.aporasas.vs[idx] / fpm
-                )
-                traf.delete(idx)
+            self.flst_log.log(
+                np.array(traf.id)[del_idx],
+                self.create_time[del_idx],
+                sim.simt - self.entrytime[del_idx],
+                (self.distance2D[del_idx] - self.dstart2D[del_idx]),
+                (self.distance3D[del_idx] - self.dstart3D[del_idx]),
+                (traf.work[del_idx] - self.workstart[del_idx]) * 1e-6,
+                traf.lat[del_idx],
+                traf.lon[del_idx],
+                traf.alt[del_idx] / ft,
+                traf.tas[del_idx],
+                traf.vs[del_idx] / fpm,
+                traf.hdg[del_idx],
+                traf.cr.active[del_idx],
+                traf.aporasas.alt[del_idx] / ft,
+                traf.aporasas.tas[del_idx],
+                traf.aporasas.hdg[del_idx],
+                traf.aporasas.vs[del_idx] / fpm
+            )
+            traf.delete(del_idx)
 
     def set_area(self, *args):
         """ Set Experiment Area. Aircraft leaving this experiment area raise an error.
