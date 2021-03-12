@@ -50,6 +50,7 @@ class UrbanGrid(Entity):
         self.n_cols = n_cols
         self.grid_width = grid_width
         self.grid_height = grid_height
+        self.load_grid = load_grid
 
         self.name_length = max([len(str(self.n_rows)), len(str(self.n_cols))])
         self.row_sep = self.km_to_lon(self.grid_width)
@@ -73,8 +74,14 @@ class UrbanGrid(Entity):
         self.create_nodes()
         self.load_edges()
 
-        if load_grid:
+        if self.load_grid:
             self.load_city_grid()
+
+    # def reset(self):
+        # # TODO Apparently plugin reset is called before the navdb is reset, thus this does not yet work.
+        # super().reset()
+        # if self.load_grid:
+        #     self.load_city_grid()
 
     @staticmethod
     def km_to_lat(v_sep: float) -> float:
@@ -185,12 +192,24 @@ class UrbanGrid(Entity):
 
     def load_city_grid(self) -> None:
         """
-        Loads the city grid as waypoints in the bluesky navdb.
+        Loads the city grid as waypoints directly in the bluesky navdb.
 
         :return: None
         """
         for node in self.nodes.keys():
             navdb.defwpt(name=node, lat=self.nodes[node]['lat'], lon=self.nodes[node]['lon'], wptype='citygrid')
+
+    def city_grid_scenario(self, timestamp: str = '00:00:00.00') -> List[str]:
+        """
+        Loads the city grid as waypoints as stack commands.
+
+        :return: list of commands to set up the grid in a scenario file
+        """
+        commands = ['# Load the city grid\n']
+        for node in self.nodes.keys():
+            commands.append(f'{timestamp}>DEFWPT {node} {self.nodes[node]["lat"]} {self.nodes[node]["lon"]}\n')
+        commands.append('\n')
+        return commands
 
     def calculate_shortest_path(
         self, origin: str, destination: str, prio: str = 'turns'

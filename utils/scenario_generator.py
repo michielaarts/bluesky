@@ -124,7 +124,7 @@ class ScenarioGenerator:
     @staticmethod
     def tim2txt(t):
         """Convert time to timestring: HH:MM:SS.hh"""
-        return time.strftime("%H:%M:%S.", time.gmtime(t)) + f'{(t % 1) * 100:.0f}'
+        return time.strftime("%H:%M:%S.", time.gmtime(t)) + f'{(t % 1) * 100:.0f}'.zfill(2)
 
     def write_scenario(
         self, all_scen: list, asas: str = 'on', reso: str = 'off',
@@ -165,28 +165,32 @@ class ScenarioGenerator:
                 f.write(f'# Vertical separation: {scen["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scen["t_l"]:.1f}s\n')
                 f.write(f'# Mean route length: {self.avg_route_length:.1f}m\n')
-                f.write('# ########################################### #\n')
+                f.write('# ########################################### #\n\n')
 
-                # Load urban plugin
-                f.write(f'{self.tim2txt(0)}>PLUGIN URBAN\n\n')
+                # Load urban grid
+                f.writelines(self.urban_grid.city_grid_scenario(self.tim2txt(0)))
+
+                # Pan screen to center node, zoom and hold simulation
+                f.write('# Pan screen to center node\n')
+                f.write(f'{self.tim2txt(0)}>PAN {self.urban_grid.center_node}\n')
+                f.write(f'{self.tim2txt(0)}>ZOOM 20\n')
+                f.write(f'{self.tim2txt(0)}>HOLD\n\n')
 
                 # Set ASAS and RESO
+                f.write('# Set ASAS variables\n')
                 f.write(f'{self.tim2txt(0)}>ASAS {asas}\n')
                 f.write(f'{self.tim2txt(0)}>RESO {reso}\n')
                 f.write(f'{self.tim2txt(0)}>ZONER {scen["s_h"] / nm}\n')
                 f.write(f'{self.tim2txt(0)}>ZONEDH {scen["s_v"] / 2}\n')
                 f.write(f'{self.tim2txt(0)}>DTLOOK {scen["t_l"]}\n\n')
 
-                # Pan screen to center node, zoom and hold simulation
-                f.write(f'{self.tim2txt(0)}>PAN {self.urban_grid.center_node}\n')
-                f.write(f'{self.tim2txt(0)}>ZOOM 20\n')
-                f.write(f'{self.tim2txt(0)}>HOLD\n\n')
-
                 # Load experiment area and logger.
                 bbox = [self.urban_grid.min_lat - 1, self.urban_grid.min_lon - 1,
                         self.urban_grid.max_lat + 1, self.urban_grid.max_lon + 1]
                 f.write(f'{self.tim2txt(0)}>AREA {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n\n')
 
+                # Create aircraft.
+                f.write('# Create aircraft.\n')
                 max_id = scen['scenario'][-1]['id']
                 len_ac_id = len(str(max_id))
                 for ac in scen['scenario']:
@@ -199,7 +203,7 @@ class ScenarioGenerator:
                     hdg = self.urban_grid.edges[origin][first_node]['hdg']
 
                     # Write to .scn file.
-                    f.write(f'\n# Creating aircraft no. {ac["id"]}\n')
+                    f.write(f'# Creating aircraft no. {ac["id"]}\n')
                     f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} '
                             f'{origin} {hdg} {departure_alt} {tas}\n')
                     f.write(f'{time_string}>ORIG {callsign} {origin}\n')
@@ -208,6 +212,7 @@ class ScenarioGenerator:
                         f.write(f'{time_string}>ADDWPT {callsign} {wpt} {cruise_alt} {tas}\n')
                     f.write(f'{time_string}>LNAV {callsign} ON\n')
                     f.write(f'{time_string}>VNAV {callsign} ON\n')
+                    f.write('\n')
                 print(f'Written {filepath / filename}')
 
 
@@ -215,7 +220,7 @@ if __name__ == '__main__':
     N_INST = np.array([10., 100., 200.])
     SPEED = 10.
     DURATION = 1800.
-    PREFIX = 'uniform_noise'
+    PREFIX = 'urban_grid'
 
     N_ROWS = 19
     N_COLS = N_ROWS
