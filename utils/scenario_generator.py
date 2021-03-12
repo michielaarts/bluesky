@@ -152,7 +152,7 @@ class ScenarioGenerator:
 
             # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
             cruise_alt = 50.  # ft
-            departure_alt = cruise_alt - scen['s_v'] * 1.1  # ft
+            departure_alt = cruise_alt - scen['s_v'] * 1.5  # ft
 
             filename = f'{prefix}_N{n_inst:.0f}_V{spd:.0f}_T{duration:.0f}.scn'
             with open(filepath / filename, 'w') as f:

@@ -8,7 +8,6 @@ Created by Michiel Aarts - March 2021
 """
 import numpy as np
 from bluesky.traffic.asas import ConflictResolution
-import warnings
 
 
 def init_plugin():
@@ -71,9 +70,9 @@ class SpeedBased(ConflictResolution):
             idx1 = ownship.id.index(ac1)
             idx2 = intruder.id.index(ac2)
 
-            if 175. < qdr < 185.:
+            if 175. < (ownship.trk[idx1] - intruder.trk[idx2]) % 360. < 185.:
                 # Head on conflicts should not be present in an urban airspace, as these cannot be resolved.
-                warnings.warn(f'Head-on conflict detected between {ac1} and {ac2}!')
+                raise RuntimeError(f'Head-on conflict detected between {ac1} and {ac2}!')
 
             # If A/C indexes are found, then apply speed_based on this conflict pair.
             # Because ADSB is ON, this is done for each aircraft separately.
