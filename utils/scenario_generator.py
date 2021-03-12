@@ -83,8 +83,12 @@ class ScenarioGenerator:
             # Determine departure times.
             avg_route_duration = self.avg_route_length / V
             spawn_rate = n_i / avg_route_duration
+            spawn_interval = 1 / spawn_rate
             n_total = round(T * spawn_rate)
-            departure_times = np.cumsum(stats.expon(scale=1 / spawn_rate).rvs(n_total))
+            # departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))  # Exponential distribution.
+            # Exponential is more realistic, but makes comparison with analytical model less clear.
+            departure_times = np.array(range(n_total)) * spawn_interval  # Uniform interval.
+            departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99, size=n_total)  # Add noise.
 
             # Calculate origin-destination combinations and routes.
             od_nodes = self.urban_grid.od_nodes
@@ -211,6 +215,7 @@ if __name__ == '__main__':
     N_INST = np.array([10., 100., 200.])
     SPEED = 10.
     DURATION = 1800.
+    PREFIX = 'uniform_noise'
 
     N_ROWS = 19
     N_COLS = N_ROWS
@@ -222,4 +227,4 @@ if __name__ == '__main__':
 
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
     all_scenarios = scen_gen.create_scenario(N_INST, SPEED, DURATION, S_H, S_V, T_L)
-    scen_gen.write_scenario(all_scenarios, reso='off')
+    scen_gen.write_scenario(all_scenarios, prefix=PREFIX, reso='off')
