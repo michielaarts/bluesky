@@ -100,25 +100,16 @@ class SpeedBased(ConflictResolution):
         newgs = np.sqrt(newv[0, :] ** 2 + newv[1, :] ** 2)
         newvs = ownship.vs
 
-        # Cap the velocity.
-        newgscapped = np.maximum(ownship.perf.vmin, np.minimum(ownship.perf.vmax, newgs))
+        # Cap the velocity (and prevent reverse flying).
+        newgscapped = np.maximum(0, np.minimum(ownship.perf.vmax, newgs))
 
         # Cap the vertical speed.
         vscapped = np.maximum(ownship.perf.vsmin, np.minimum(ownship.perf.vsmax, newvs))
 
         return newtrack, newgscapped, vscapped, ownship.selalt
 
-    def speed_based(self, ownship, intruder, conf, qdr, dist, tcpa, tLOS, idx1, idx2):
+    def speed_based(self, ownship, intruder, conf, qdr, dist, tcpa, tlos, idx1, idx2):
         """ Constrained environment speed-based resolution algorithm """
-        # Preliminary calculations.
-
-        if tcpa < 0:
-            # Closest point already passed. Do nothing.
-            return np.zeros(3), idx1
-
-        if ownship != intruder:
-            raise ValueError('ownship != intruder ??\n', ownship.tas, intruder.tas)
-
         # Convert bearing from degrees to radians.
         qdr = np.deg2rad(qdr)
 
@@ -147,36 +138,62 @@ class SpeedBased(ConflictResolution):
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
-        # Check if flying in-airway.
         if track_angle < self.behind_angle:
-            # Check if approaching from behind (bearing and speed should be in equal directions).
-            qdr_trk_angle = (np.deg2rad(ownship.trk[idx1]) - qdr) % (2 * np.pi)
-            if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
-                # Ownship approaching from behind, needs to decelerate to intruder speed.
-                self.is_leading[idx1] = False
+            # In-airway conflict.
+            distance_to_los = dist - conf.rpz
+            if distance_to_los < 0 and (abs(ownship.vs[idx1]) > 0 or abs(intruder.vs[idx2]) > 0):
+                # Conflict with climbing / descending aircraft.
+                if abs(ownship.vs[idx1]) > 0:
+                    if abs(intruder.vs[idx2]) > 0:
+                        raise NotImplemented('Conflicts between two climbing / descending a/c not yet implemented')
+                    if ownship.vs[idx1] < 0:
+                        # Aircraft already descending out of area, do nothing.
+                        return v1 * 0, idx1
+                    # Ownship is climbing / descending, must resolve conflict.
+                    self.is_leading[idx1] = False
+                    vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - conf.hpz
+                    desired_tlos = conf.dtlookahead * self.behind_ratio
+                    desired_vertical_vrel = vertical_distance_to_los / desired_tlos
+                    decelerate_factor = 1 - desired_vertical_vrel / ownship.vs[idx1]
 
-                # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
-                # Approach such that the time_to_conflict becomes dtlookahead * behind_ratio.
-                distance_to_conflict = dist - conf.rpz
-                time_to_conflict = conf.dtlookahead * self.behind_ratio
-                vrel_to_conflict = distance_to_conflict / time_to_conflict
-                resolution_spd = mag_v2 + vrel_to_conflict
-                decelerate_factor = 1 - resolution_spd / mag_v1
-
-                if resolution_spd > ownship.ap.tas[idx1]:
-                    # Acceleration advised, do nothing.
-                    return v1 * 0, idx1
-                return -v1 * decelerate_factor, idx1
+                    if decelerate_factor < 0:
+                        # Acceleration advised, do nothing.
+                        return v1 * 0, idx1
+                    return -v1 * decelerate_factor, idx1
+                else:
+                    # Intruder must resolve conflict as it is climbing / descending.
+                    # Do nothing.
+                    return v1 * 0., idx1
             else:
-                # Intruder must resolve conflict from behind.
-                # Do nothing.
-                return v1 * 0., idx1
+                # Same-level, in-airway conflict.
+                # Check if approaching from behind (bearing and speed should be in equal directions).
+                qdr_trk_angle = (np.deg2rad(ownship.trk[idx1]) - qdr) % (2 * np.pi)
+                if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
+                    # Ownship approaching from behind, needs to decelerate to intruder speed.
+                    self.is_leading[idx1] = False
+
+                    # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
+                    # Approach such that the time_to_conflict becomes dtlookahead * behind_ratio.
+                    desired_tlos = conf.dtlookahead * self.behind_ratio
+                    desired_vrel = distance_to_los / desired_tlos
+                    resolution_spd = mag_v2 + desired_vrel
+                    decelerate_factor = 1 - resolution_spd / mag_v1
+
+                    if decelerate_factor < 0:
+                        # Acceleration advised, do nothing.
+                        return v1 * 0, idx1
+                    return -v1 * decelerate_factor, idx1
+                else:
+                    # Intruder must resolve conflict from behind.
+                    # Do nothing.
+                    return v1 * 0., idx1
         elif np.pi / 2 <= cpa_angle <= 3 * np.pi / 2:
-            # Intruder must resolve crossing conflict.
-            # Do nothing.
+            # Crossing conflict.
+            # Intruder must resolve, do nothing.
             return v1 * 0., idx1
         elif cpa_angle < np.pi / 2 or cpa_angle > 3 * np.pi / 2:
-            # Ownship must resolve crossing conflict.
+            # Crossing conflict.
+            # Ownship must resolve.
             self.is_leading[idx1] = False
 
             # Calculate cosine angle.

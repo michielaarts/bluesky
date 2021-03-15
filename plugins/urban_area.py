@@ -53,9 +53,10 @@ conf_header = \
     'Inst. number of losses of separation [-], ' + \
     'Total number of aircraft [-], ' + \
     'Total number of conflicts [-], ' + \
-    'Total number of losses of separation [-]\n'
+    'Total number of losses of separation [-], ' + \
+    'CR [bool]\n'
 
-conf_vars = 't, ni_ac, ni_conf, ni_los, ntotal_ac, ntotal_conf, ntotal_los\n'
+conf_vars = 't, ni_ac, ni_conf, ni_los, ntotal_ac, ntotal_conf, ntotal_los, cr\n'
 
 # Global data
 area = None
@@ -96,7 +97,7 @@ def init_plugin():
 
 
 class Area(Entity):
-    """ Traffic area: delete traffic when they reach their destination (i.e. when they switch off LNAV) """
+    """ Traffic area: delete traffic when they reach their destination (i.e. when they switch off LNAV). """
 
     def __init__(self):
         super().__init__()
@@ -137,13 +138,18 @@ class Area(Entity):
         """ Create is called when new aircraft are created. """
         super().create(n)
         self.inside_exp[-n:] = False
+        self.distance2D[-n:] = 0.
+        self.distance3D[-n:] = 0.
+        self.dstart2D[-n:] = None
+        self.dstart3D[-n:] = None
+        self.workstart[-n:] = None
+        self.entrytime[-n:] = None
         self.create_time[-n:] = sim.simt
         self.ntotal_ac += n
 
     @timed_function(name='AREA', dt=1.0)
     def update(self, dt):
-        """ Update flight efficiency metrics
-            2D and 3D distance [m], and work done (force*distance) [J] """
+        """ Log all desired data if AREA is active. """
         if self.active:
             total_spd = np.sqrt(traf.gs * traf.gs + traf.vs * traf.vs)
             self.distance2D += dt * traf.gs
@@ -165,9 +171,9 @@ class Area(Entity):
             self.ntotal_los += len(lospairs_new)
 
             self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique), len(traf.cd.lospairs_unique),
-                              self.ntotal_ac, self.ntotal_conf, self.ntotal_los)
+                              self.ntotal_ac, self.ntotal_conf, self.ntotal_los, bool(traf.cr.do_cr))
 
-            # Register distance values upon entry of experiment area (includes spawning aircraft).
+            # Log distance values upon entry of experiment area (includes spawning aircraft).
             newentries = np.logical_not(self.inside_exp) * inside_exp
             self.dstart2D[newentries] = self.distance2D[newentries]
             self.dstart3D[newentries] = self.distance3D[newentries]
@@ -202,13 +208,13 @@ class Area(Entity):
                 traf.aporasas.alt[del_idx] / ft,
                 traf.aporasas.tas[del_idx],
                 traf.aporasas.hdg[del_idx],
-                traf.aporasas.vs[del_idx] / fpm
+                traf.aporasas.vs[del_idx] / fpm,
             )
             traf.delete(del_idx)
 
     def set_area(self, *args):
         """ Set Experiment Area. Aircraft leaving this experiment area raise an error.
-        Input can be existing shape name, or a box with optional altitude constraints."""
+        Input can be existing shape name, or a box with optional altitude constraints. """
         # Set both exp_area and del_area to the same size.
         curname = self.exp_area
         msgname = 'Experiment area'
@@ -233,8 +239,8 @@ class Area(Entity):
                 return True, f'{msgname} is set to {args[0]}'
             elif args[0][:2] == 'OF':
                 # Switch off the area and reset the logger.
-                self.active = False
-                return True, f'{msgname} is switched OFF'
+                self.close_log()
+                return True, f'{msgname} is switched OFF\nLogs are closed'
             elif args[0][:2] == 'ON':
                 if not curname:
                     return False, 'No area defined.'
@@ -263,7 +269,11 @@ class Area(Entity):
                    'AREA Shapename/OFF or\n Area lat,lon,lat,lon,[top,bottom]'
 
     def close_log(self):
-        """ Close the logfiles. This helps if QUIT does not let the logs finish properly. """
+        """
+        Close the logfiles and reset area.
+        A new area / experiment can be defined afterwards.
+        This helps if QUIT does not let the logs finish properly.
+        """
         datalog.reset()
         self.reset()
-        return True, 'Logs are closed\nExperiment area set to None.'
+        return True, 'Logs are closed\nExperiment area set to None'
