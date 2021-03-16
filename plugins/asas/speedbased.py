@@ -113,6 +113,10 @@ class SpeedBased(ConflictResolution):
         # Convert bearing from degrees to radians.
         qdr = np.deg2rad(qdr)
 
+        # Protected zones.
+        s_h = conf.rpz * self.resofach
+        s_v = conf.hpz * self.resofacv
+
         # Relative position vector between id1 and id2.
         drel = np.array([np.sin(qdr) * dist,
                          np.cos(qdr) * dist,
@@ -127,7 +131,6 @@ class SpeedBased(ConflictResolution):
         mag_vrel = np.linalg.norm(vrel)
 
         # Find horizontal distance at the tcpa (min horizontal distance).
-        s_h = conf.rpz * self.resofach
         dcpa = drel + vrel * tcpa
         mag_dcpa = np.linalg.norm(dcpa)
 
@@ -140,7 +143,7 @@ class SpeedBased(ConflictResolution):
 
         if track_angle < self.behind_angle:
             # In-airway conflict.
-            distance_to_los = dist - conf.rpz
+            distance_to_los = dist - s_h
             if distance_to_los < 0 and (abs(ownship.vs[idx1]) > 0 or abs(intruder.vs[idx2]) > 0):
                 # Conflict with climbing / descending aircraft.
                 if abs(ownship.vs[idx1]) > 0:
@@ -150,8 +153,11 @@ class SpeedBased(ConflictResolution):
                         # Aircraft already descending out of area, do nothing.
                         return v1 * 0, idx1
                     # Ownship is climbing / descending, must resolve conflict.
+                    # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
+                    # Approach such that the time to los becomes dtlookahead * behind_ratio.
+                    # Due to this deceleration, the vertical conflict will result in a horizontal resolution.
                     self.is_leading[idx1] = False
-                    vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - conf.hpz
+                    vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
                     desired_tlos = conf.dtlookahead * self.behind_ratio
                     desired_vertical_vrel = vertical_distance_to_los / desired_tlos
                     decelerate_factor = 1 - desired_vertical_vrel / ownship.vs[idx1]
@@ -173,7 +179,7 @@ class SpeedBased(ConflictResolution):
                     self.is_leading[idx1] = False
 
                     # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
-                    # Approach such that the time_to_conflict becomes dtlookahead * behind_ratio.
+                    # Approach such that the time to los becomes dtlookahead * behind_ratio.
                     desired_tlos = conf.dtlookahead * self.behind_ratio
                     desired_vrel = distance_to_los / desired_tlos
                     resolution_spd = mag_v2 + desired_vrel
