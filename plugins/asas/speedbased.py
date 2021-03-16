@@ -8,6 +8,7 @@ Created by Michiel Aarts - March 2021
 """
 import numpy as np
 from bluesky.traffic.asas import ConflictResolution
+from bluesky import traf
 
 
 def init_plugin():
@@ -57,13 +58,14 @@ class SpeedBased(ConflictResolution):
         """ Vertical speed inactive """
         return np.zeros(self.active.shape, dtype=bool)
 
+    def create(self, n=1):
+        super().create(n)
+        self.is_leading[-n:] = True
+
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
         # Initialize an array to store the resolution velocity vector for all A/C.
         dv = np.zeros((ownship.ntraf, 3))
-
-        # Reset all is_leading flags.
-        self.is_leading[:] = True
 
         # Call speed_based function to resolve conflicts.
         for ((ac1, ac2), qdr, dist, tcpa, tLOS) in zip(conf.confpairs, conf.qdr, conf.dist, conf.tcpa, conf.tLOS):
@@ -141,14 +143,22 @@ class SpeedBased(ConflictResolution):
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
-        if track_angle < self.behind_angle:
+        # if tlos < 0:
+        #     # DEBUG: check for LOS.
+        #     id1 = ownship.id[idx1]
+        #     id2 = intruder.id[idx2]
+        #     print("Deze willen we checken:", id1, id2)
+
+        if track_angle < self.behind_angle or track_angle > np.pi * 2 - self.behind_angle:
             # In-airway conflict.
             distance_to_los = dist - s_h
             if distance_to_los < 0 and (abs(ownship.vs[idx1]) > 0 or abs(intruder.vs[idx2]) > 0):
                 # Conflict with climbing / descending aircraft.
                 if abs(ownship.vs[idx1]) > 0:
                     if abs(intruder.vs[idx2]) > 0:
-                        raise NotImplemented('Conflicts between two climbing / descending a/c not yet implemented')
+                        # Conflicts between two climbing / descending a/c not yet implemented.
+                        # Do nothing.
+                        return v1 * 0, idx1
                     if ownship.vs[idx1] < 0:
                         # Aircraft already descending out of area, do nothing.
                         return v1 * 0, idx1
@@ -169,7 +179,7 @@ class SpeedBased(ConflictResolution):
                 else:
                     # Intruder must resolve conflict as it is climbing / descending.
                     # Do nothing.
-                    return v1 * 0., idx1
+                    return v1 * 0, idx1
             else:
                 # Same-level, in-airway conflict.
                 # Check if approaching from behind (bearing and speed should be in equal directions).
@@ -192,11 +202,11 @@ class SpeedBased(ConflictResolution):
                 else:
                     # Intruder must resolve conflict from behind.
                     # Do nothing.
-                    return v1 * 0., idx1
+                    return v1 * 0, idx1
         elif np.pi / 2 <= cpa_angle <= 3 * np.pi / 2:
             # Crossing conflict.
             # Intruder must resolve, do nothing.
-            return v1 * 0., idx1
+            return v1 * 0, idx1
         elif cpa_angle < np.pi / 2 or cpa_angle > 3 * np.pi / 2:
             # Crossing conflict.
             # Ownship must resolve.
@@ -208,9 +218,97 @@ class SpeedBased(ConflictResolution):
             # Determine time to incur for resolution.
             tr = (s_h - mag_dcpa) / (mag_v2 * np.sin(cos_angle))
 
-            vreso = v1 * tcpa / (tr + tcpa)
-            return vreso - v1, idx1
+            decelerate_factor = 1 - tcpa / (tr + tcpa)
+
+            if decelerate_factor < 0:
+                # Acceleration advised, do nothing.
+                return v1 * 0, idx1
+            return -v1 * decelerate_factor, idx1
         else:
             raise ValueError(f'Something went wrong in speed_based(),\n' +
                              f'cpa_angle={cpa_angle},\n' +
                              f'trk_angle={track_angle}')
+
+    def resumenav(self, conf, ownship, intruder):
+        """
+            Decide for each aircraft in the conflict list whether the ASAS
+            should be followed or not, based on if the aircraft pairs passed
+            their CPA.
+            Note: only difference with resolution.py/resumenav is the reset
+             of the is_leading flag.
+        """
+        # Add new conflicts to resopairs and confpairs_all and new losses to lospairs_all.
+        self.resopairs.update(conf.confpairs)
+
+        # Conflict pairs to be deleted.
+        delpairs = set()
+        changeactive = dict()
+
+        # Look at all conflicts, also the ones that are solved but CPA is yet to come.
+        for conflict in self.resopairs:
+            idx1, idx2 = traf.id2idx(conflict)
+            # If the ownship aircraft is deleted remove its conflict from the list.
+            if idx1 < 0:
+                delpairs.add(conflict)
+                continue
+
+            if idx2 >= 0:
+                # Distance vector using flat earth approximation.
+                re = 6371000.
+                dist = re * np.array([np.radians(intruder.lon[idx2] - ownship.lon[idx1]) *
+                                      np.cos(0.5 * np.radians(intruder.lat[idx2] +
+                                                              ownship.lat[idx1])),
+                                      np.radians(intruder.lat[idx2] - ownship.lat[idx1])])
+
+                # Relative velocity vector.
+                vrel = np.array([intruder.gseast[idx2] - ownship.gseast[idx1],
+                                 intruder.gsnorth[idx2] - ownship.gsnorth[idx1]])
+
+                # Check if conflict is past CPA.
+                past_cpa = np.dot(dist, vrel) > 0.0
+
+                # hor_los:
+                # Aircraft should continue to resolve until there is no horizontal
+                # LOS. This is particularly relevant when vertical resolutions
+                # are used.
+                hdist = np.linalg.norm(dist)
+                hor_los = hdist < conf.rpz
+
+                # Bouncing conflicts:
+                # If two aircraft are getting in and out of conflict continously,
+                # then they it is a bouncing conflict. ASAS should stay active until
+                # the bouncing stops.
+                is_bouncing = \
+                    abs(ownship.trk[idx1] - intruder.trk[idx2]) < 30.0 and \
+                    hdist < conf.rpz * self.resofach
+
+            # Start recovery for ownship if intruder is deleted, or if past CPA
+            # and not in horizontal LOS or a bouncing conflict.
+            if idx2 >= 0 and (not past_cpa or hor_los or is_bouncing):
+                # Enable ASAS for this aircraft
+                changeactive[idx1] = True
+            else:
+                # Switch ASAS off for ownship if there are no other conflicts.
+                # that this aircraft is involved in.
+                changeactive[idx1] = changeactive.get(idx1, False)
+                # If conflict is solved, remove it from the resopairs list.
+                delpairs.add(conflict)
+                # Reset is_leading flag.
+                self.is_leading[idx1] = True
+
+        for idx, active in changeactive.items():
+            # Loop a second time: this is to avoid that ASAS resolution is
+            # turned off for an aircraft that is involved simultaneously in
+            # multiple conflicts, where the first, but not all conflicts are
+            # resolved.
+            self.active[idx] = active
+            if not active:
+                # Waypoint recovery after conflict: Find the next active waypoint
+                # and send the aircraft to that waypoint.
+                iwpid = traf.ap.route[idx].findact(idx)
+                if iwpid != -1:  # To avoid problems if there are no waypoints.
+                    traf.ap.route[idx].direct(
+                        idx, traf.ap.route[idx].wpname[iwpid])
+
+        # Remove pairs from the list that are past CPA or have deleted aircraft.
+        self.resopairs -= delpairs

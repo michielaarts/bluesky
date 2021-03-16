@@ -228,7 +228,7 @@ if __name__ == '__main__':
     VERTICAL_SEPARATION_KM = 0.2  # km
     S_H = 50.  # m
     S_V = 25.  # ft
-    T_L = 10.  # s
+    T_L = 20.  # s
 
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
     all_scenarios = scen_gen.create_scenario(N_INST, SPEED, DURATION, S_H, S_V, T_L)
