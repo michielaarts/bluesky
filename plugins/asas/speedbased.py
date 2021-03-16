@@ -1,8 +1,8 @@
 """
 Urban environment speed-based CR algorithm.
-Note: decelerating only
-TODO Update for 3D conflicts
-TODO Prevent decelerating to negative speeds (which some drones are capable of?)
+Note: - Decelerating only
+      - Climbing aircraft give way
+      - Descending aircraft are ignored.
 
 Created by Michiel Aarts - March 2021
 """
@@ -19,7 +19,6 @@ def init_plugin():
         # The type of this plugin. For now, only simulation plugins are possible.
         'plugin_type': 'sim',
     }
-
     return config
 
 
@@ -29,7 +28,8 @@ class SpeedBased(ConflictResolution):
         # Set behind_angle and behind_ratio to handle in-airway speed-based conflicts.
         # Behind_angle is the maximum track angle difference between two aircraft
         # for them to be in an in-airway conflict.
-        # Behind_ratio is the ratio of dtlookahead that the following aircraft will use in its conflict resolution.
+        # Behind_ratio is the ratio of dtlookahead that the following aircraft
+        # will use in its conflict resolution.
         self.behind_angle = np.deg2rad(10)
         self.behind_ratio = 0.9
 
