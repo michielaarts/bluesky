@@ -116,12 +116,10 @@ class ScenarioGenerator:
                 prev_origin = origin
                 prev_destination = destination
 
-            flow_rates = self.calculate_flow_rates(all_ac, duration)
-
             scen_dict = {'n_inst': n_i, 'n_total': n_total,
                          'speed': V, 'duration': duration,
                          's_h': s_h, 's_v': s_v, 't_l': t_l,
-                         'scenario': all_ac, 'flow_rates': flow_rates}
+                         'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes}
             all_scen.append(scen_dict)
         return all_scen
 
@@ -268,35 +266,9 @@ class ScenarioGenerator:
 
                 print(f'Written {scn_path / scn_file}')
 
-    def calculate_flow_rates(self, all_ac: list, duration: Tuple[float, float, float]) -> dict:
-        """
-        Approximates the flow rates [veh/s] at each waypoint for a certain scenario.
-        Approximation valid for the case without conflict resolution.
-
-        :param all_ac: List of ac dicts (see create_scenario)
-        :param duration: Scenario duration [s] - Tuple[build-up, experiment, cool-down]
-        :return: Dict with flow rate per waypoint
-        """
-        # Initialise dict.
-        flow_count = {}
-        for node in self.urban_grid.all_nodes:
-            flow_count[node] = 0.
-
-        # Obtain total flow count.
-        for ac in all_ac:
-            if duration[0] <= ac['departure_time'] < sum(duration[:2]):
-                for node in ac['path']:
-                    flow_count[node] += 1
-
-        # Derive flow rates.
-        flow_rates = {}
-        for node in flow_count.keys():
-            flow_rates[node] = flow_count[node] / duration[1]
-        return flow_rates
-
 
 if __name__ == '__main__':
-    N_INST = np.array([10., 100., 200.])
+    N_INST = np.array([10., 100., 200., 750.])
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.

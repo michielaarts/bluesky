@@ -37,7 +37,7 @@ def init_plugin():
 class UrbanGrid(Entity):
     def __init__(self, n_rows: int, n_cols: int, grid_width: float, grid_height: float, load_grid: bool = False):
         """
-        Instantiates an orthogonal grid at location (0, 0).
+        Instantiates a counterclockwise orthogonal grid at location (0, 0).
 
         :param n_rows: Number of rows (should be a multiple of 4, minus 1)
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
@@ -95,10 +95,12 @@ class UrbanGrid(Entity):
         """
         Creates a grid of nodes.
 
-        Outer path should be a circle of E->N->W->S, starting from (0, 0).
+        Outer path should be a counterclockwise circle of E->N->W->S, starting from (0, 0).
         Smallest version:
         SW - W - NW
-        S  - . - N
+        |        |
+        S    .   N
+        |        |
         SE - E - NE
 
         :return: None
