@@ -12,7 +12,7 @@ from tkinter import Tk, filedialog
 # Standard inputs.
 OUTPUT_FOLDER = Path('../output/')
 SCN_FOLDER = Path('../scenario/URBAN/')
-PROCESS_WR = False
+PROCESS_WR = True
 
 
 def process_batch_file(filename: str) -> List[str]:
@@ -59,24 +59,12 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
     all_scn_names = []
     if 'batch' in scn_file:
         pcall_files = process_batch_file(scn_file)
-        for pcall in pcall_files:
-            scn_name = pcall[:-4] + '_NR'
-            all_scn_names.append(scn_name)
-            result[scn_name] = {'scn_file': pcall}
-            logs = filedialog.askopenfilenames(initialdir=output_folder, title=f'Select logs for {scn_name}',
-                                               filetypes=[('log', '*.log')])
-            for log in logs:
-                if 'CONFLOG' in log:
-                    result[scn_name]['conflogfile'] = Path(log)
-                elif 'FLSTLOG' in log:
-                    result[scn_name]['flstlogfile'] = Path(log)
-                else:
-                    raise ValueError('Select flstlog or conflogs')
-
-        # Check if NR file.
+        reso_cases = ['NR']
         if process_wr:
+            reso_cases.append('WR')
+        for reso in reso_cases:
             for pcall in pcall_files:
-                scn_name = pcall[:-4] + '_WR'
+                scn_name = f'{pcall[:-4]}_{reso}'
                 all_scn_names.append(scn_name)
                 result[scn_name] = {'scn_file': pcall}
                 logs = filedialog.askopenfilenames(initialdir=output_folder, title=f'Select logs for {scn_name}',
@@ -100,8 +88,12 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
             result[run]['scn'] = pkl.load(scn_data_file)
 
         # Create routing df.
-        print(f'Creating routing dataframe for {run}')
-        result[run]['routing'] = create_routing_df(result[run]['scn'])
+        if run.endswith('NR'):
+            print(f'Creating routing dataframe for {run}')
+            result[run]['routing'] = create_routing_df(result[run]['scn'])
+        else:
+            nr_run = run[:-2] + 'NR'
+            result[run]['routing'] = result[nr_run]['routing']
 
         # Read log files.
         if 'conflogfile' in result[run].keys():
@@ -164,14 +156,17 @@ def process_result(result: dict) -> dict:
 
         # Process logs.
         result[run]['conf'] = process_conflog(result[run]['conflog'], logging_start, logging_end)
-        if run[-2:] == 'NR':
+        if run.endswith('NR'):
             # NR case.
             result[run]['flst'], result[run]['ac'] = process_flstlog(result[run]['flstlog'],
                                                                      logging_start, logging_end)
         else:
             # WR case.
-            # TODO select all aircraft from the NR case
-            raise NotImplemented('WR case')
+            nr_run = run[:-2] + 'NR'
+            result[run]['ac'] = result[nr_run]['ac']
+            result[run]['flst'], _ = process_flstlog(result[run]['flstlog'],
+                                                     logging_start, logging_end,
+                                                     result[run]['ac'])
     return result
 
 
@@ -188,9 +183,12 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
 
 
 def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, ac=None) -> Tuple[dict, np.ndarray]:
-    if ac:
-        # TODO implement WR case.
-        return {}, np.array([])
+    if ac is not None:
+        # WR case.
+        logging_df = flst_df[flst_df['callsign'].isin(ac)]
+        flst = logging_df[['flight_time', 'dist2D', 'dist3D', 'work_done', 'tas']].mean().to_dict()
+        flst['num_ac'] = len(ac)
+        return flst, ac
     else:
         # NR case.
         logging_df = flst_df[(flst_df['departure_time'] >= start_time) & (flst_df['departure_time'] < end_time)]
@@ -209,7 +207,9 @@ def plot_result(result: dict) -> None:
     """
     # Initialize plots.
     conf_fig, conf_axs = plt.subplots(2, 3, num=1)
+    plt.get_current_fig_manager().window.showMaximized()
     flst_fig, flst_axs = plt.subplots(1, 2, num=2)
+    plt.get_current_fig_manager().window.showMaximized()
     conf_axs = conf_axs.flatten()
     flst_axs = flst_axs.flatten()
 
@@ -218,49 +218,62 @@ def plot_result(result: dict) -> None:
     for run in result.keys():
         if run == 'name':
             continue
-        if len(data) == 0:
+        if run.endswith('NR'):
+            reso = 'NR'
+        else:
+            reso = 'WR'
+        if reso not in data.keys():
+            data[reso] = {}
             # First run.
-            data = result[run]['conf']
-            data.update(result[run]['flst'])
-            for key in data.keys():
-                data[key] = [data[key]]
+            data[reso] = result[run]['conf']
+            data[reso].update(result[run]['flst'])
+            for key in data[reso].keys():
+                data[reso][key] = [data[reso][key]]
         else:
             # Append other runs to lists.
             for conf_key in result[run]['conf'].keys():
-                data[conf_key].append(result[run]['conf'][conf_key])
+                data[reso][conf_key].append(result[run]['conf'][conf_key])
             for flst_key in result[run]['flst'].keys():
-                data[flst_key].append(result[run]['flst'][flst_key])
+                data[reso][flst_key].append(result[run]['flst'][flst_key])
 
     # Plot values.
-    x = data['ni_ac']
-    for ax in conf_axs:
-        ax.set_xlabel('Inst. no. of aircraft [-]')
-    conf_axs[0].scatter(x, data['ni_conf'])
-    conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
-    conf_axs[1].scatter(x, data['ni_los'])
-    conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    conf_axs[2].scatter(x, data['ntotal_ac'])
-    conf_axs[2].set_ylabel('Total no. of A/C [-]')
-    conf_axs[3].scatter(x, data['ntotal_conf'])
-    conf_axs[3].set_ylabel('Total no. of conflicts [-]')
-    conf_axs[4].scatter(x, data['ntotal_los'])
-    conf_axs[4].set_ylabel('Total no. of los [-]')
+    for reso in data.keys():
+        if reso == 'NR':
+            color = 'blue'
+        else:
+            color = 'red'
 
-    for ax in flst_axs:
-        ax.set_xlabel('Inst. no. of aircraft [-]')
-    flst_axs[0].scatter(x, data['flight_time'])
-    flst_axs[0].set_ylabel('Mean flight time [s]')
-    flst_axs[1].scatter(x, data['dist2D'])
-    flst_axs[1].set_ylabel('Mean 2D distance [m]')
+        x = data[reso]['ni_ac']
+        conf_axs[0].scatter(x, data[reso]['ni_conf'], color=color, label=reso)
+        conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
+        conf_axs[1].scatter(x, data[reso]['ni_los'], color=color, label=reso)
+        conf_axs[1].set_ylabel('Inst. no. of los [-]')
+        conf_axs[2].scatter(x, data[reso]['ntotal_ac'], color=color, label=reso)
+        conf_axs[2].set_ylabel('Total no. of A/C [-]')
+        conf_axs[3].scatter(x, data[reso]['ntotal_conf'], color=color, label=reso)
+        conf_axs[3].set_ylabel('Total no. of conflicts [-]')
+        conf_axs[4].scatter(x, data[reso]['ntotal_los'], color=color, label=reso)
+        conf_axs[4].set_ylabel('Total no. of los [-]')
+        for ax in conf_axs:
+            ax.set_xlabel('Inst. no. of aircraft [-]')
+            ax.legend()
+
+        flst_axs[0].scatter(x, data[reso]['flight_time'], color=color, label=reso)
+        flst_axs[0].set_ylabel('Mean flight time [s]')
+        flst_axs[1].scatter(x, data[reso]['dist2D'], color=color, label=reso)
+        flst_axs[1].set_ylabel('Mean 2D distance [m]')
+        for ax in flst_axs:
+            ax.set_xlabel('Inst. no. of aircraft [-]')
+            ax.legend()
 
 
 if __name__ == '__main__':
-    # res = create_result_dict()
-    # res = process_result(res)
-    # save_result(res)
+    res = create_result_dict()
+    res = process_result(res)
+    save_result(res)
 
-    res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_urban_grid_NR.pkl')
-    with open(res_pkl, 'rb') as f:
-        res = pkl.load(f)
+    # res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_urban_grid_NR.pkl')
+    # with open(res_pkl, 'rb') as f:
+    #     res = pkl.load(f)
 
     plot_result(res)
