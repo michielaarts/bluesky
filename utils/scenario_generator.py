@@ -25,6 +25,8 @@ class ScenarioGenerator:
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
         :param grid_width: Distance between two longitudinal nodes [km]
         :param grid_height: Distance between two lateral nodes [km]
+
+        :return: None
         """
 
         self.n_rows = n_rows
@@ -51,6 +53,8 @@ class ScenarioGenerator:
         :param v_sep: vertical separation [ft] - optionally an array
         :param t_lookahead: look-ahead time [s] - optionally an array
         :param ac_type: Type of aircraft
+
+        :return: list of scenario dicts
         """
         # Parse inputs.
         if isinstance(n_inst, float):
@@ -131,7 +135,8 @@ class ScenarioGenerator:
     def write_scenario(
         self, all_scen: list, asas: str = 'on',
         prefix: str = 'test_scen',
-        scn_path: Path = Path('../scenario/URBAN/'), pkl_path: Path = Path('../scenario/URBAN/Data/')
+        scn_path: Path = Path('../scenario/URBAN/'),
+        pkl_path: Path = Path('../scenario/URBAN/Data/')
     ) -> None:
         """
         Writes one or more scenarios to *.scn files.
@@ -141,6 +146,7 @@ class ScenarioGenerator:
         :param prefix: Prefix to scenario names
         :param scn_path: path to scenario folder
         :param pkl_path: path to pickle folder
+
         :return: None
         """
 

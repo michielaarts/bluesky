@@ -12,78 +12,91 @@ from pathlib import Path
 import pandas as pd
 from bluesky.tools.geo import kwikqdrdist
 
-# Select file.
-root = Tk()
-SCN_DIR = Path('../scenario/URBAN/Data/')
-filename = filedialog.askopenfilename(initialdir=SCN_DIR)
-root.destroy()
 
-with open(Path(filename), 'rb') as f:
-    scn = pkl.load(f)
+def create_routing_df(scn: dict) -> pd.DataFrame:
+    """
+    Create routing dataframe.
 
-# Create routing dataframe.
-# Note: may take a long time for densities > 100 inst. no. of ac.
-all_angles = np.array(range(9)) * 45
-corner_angles = np.array(range(4)) * 90 + 45
-index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
-routing = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
-for ac in scn['scenario']:
-    if scn['duration'][0] < ac['departure_time'] < sum(scn['duration'][:2]):
-        for i in range(len(ac['path']) - 2):
-            # Does not include origin and destination passages of nodes.
-            frm, via, to = ac['path'][i:i+3]
-            if routing.index.isin([(frm, via, to)]).any():
-                routing.loc[(frm, via, to)]['num'] += 1
-            else:
-                # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
-                frm_node = scn['grid_nodes'][frm]
-                via_node = scn['grid_nodes'][via]
-                to_node = scn['grid_nodes'][to]
-                qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
-                                     to_node['lat'], to_node['lon'])
-                hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
-                if hdg == 360:
-                    hdg = 0.
-                if hdg in corner_angles:
-                    corner = True
+    Note: may take a long time for densities > 100 inst. no. of ac.
+
+    :param scn: scenario dict from scenario_generator.py
+    :return: Routing dataframe
+    """
+    all_angles = np.array(range(9)) * 45
+    corner_angles = np.array(range(4)) * 90 + 45
+    index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
+    routing_df = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
+    for ac in scn['scenario']:
+        if scn['duration'][0] < ac['departure_time'] < sum(scn['duration'][:2]):
+            for i in range(len(ac['path']) - 2):
+                # Does not include origin and destination passages of nodes.
+                frm, via, to = ac['path'][i:i+3]
+                if routing_df.index.isin([(frm, via, to)]).any():
+                    routing_df.loc[(frm, via, to)]['num'] += 1
                 else:
-                    corner = False
-                routing.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
-                                               'lat': via_node['lat'], 'lon': via_node['lon']}
+                    # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
+                    frm_node = scn['grid_nodes'][frm]
+                    via_node = scn['grid_nodes'][via]
+                    to_node = scn['grid_nodes'][to]
+                    qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
+                                         to_node['lat'], to_node['lon'])
+                    hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
+                    if hdg == 360:
+                        hdg = 0.
+                    if hdg in corner_angles:
+                        corner = True
+                    else:
+                        corner = False
+                    routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
+                                                   'lat': via_node['lat'], 'lon': via_node['lon']}
 
-# Flow rate is approx. the number of passes of that node divided by the logging time.
-routing['flow_rate'] = routing['num'] / scn['duration'][1]
+    # Flow rate is approx. the number of passes of that node divided by the logging time.
+    routing_df['flow_rate'] = routing_df['num'] / scn['duration'][1]
+    return routing_df
 
-flow_rates = (routing.copy()
-              .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
-              .pivot('lat', 'lon', 'flow_rate'))
 
-# Plot flow rates.
-plt.figure(num=1)
-plt.imshow(flow_rates, extent=[routing['lon'].min(), routing['lon'].max(),
-                               routing['lat'].min(), routing['lat'].max()])
-plt.xlabel('Longitude [deg]')
-plt.ylabel('Latitude [deg]')
-plt.colorbar(label='Flow rate [veh/s]')
-plt.title('Cumulative flow rates [veh/s]')
+if __name__ == '__main__':
+    # Select file.
+    root = Tk()
+    SCN_DIR = Path('../scenario/URBAN/Data/')
+    filename = filedialog.askopenfilename(initialdir=SCN_DIR)
+    root.destroy()
 
-# # Save figure.
-# FIGURES_DIR = Path(r'C:\Users\michi\Dropbox\TU\Thesis\04_Prelim\Figures')
-# root = Tk()
-# savefile = filedialog.asksaveasfilename(initialdir=FIGURES_DIR, defaultextension=".svg")
-# root.destroy()
-# plt.savefig(savefile)
+    with open(Path(filename), 'rb') as f:
+        scenario = pkl.load(f)
 
-# Plot northbound flow rates.
-north_df = routing.copy()
-north_df.loc[north_df['hdg'] != 0, 'flow_rate'] = 0
-north_flow_rates = (north_df.groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
-                    .pivot('lat', 'lon', 'flow_rate'))
+    routing = create_routing_df(scenario)
 
-plt.figure(num=2)
-plt.imshow(north_flow_rates, extent=[north_df['lon'].min(), north_df['lon'].max(),
-                                     north_df['lat'].min(), north_df['lat'].max()])
-plt.xlabel('Longitude [deg]')
-plt.ylabel('Latitude [deg]')
-plt.colorbar(label='Flow rate [veh/s]')
-plt.title('Northbound flow rates [veh/s]')
+    flow_rates = (routing.copy()
+                  .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
+                  .pivot('lat', 'lon', 'flow_rate'))
+
+    # Plot flow rates.
+    plt.figure(num=1)
+    plt.imshow(flow_rates, extent=[routing['lon'].min(), routing['lon'].max(),
+                                   routing['lat'].min(), routing['lat'].max()])
+    plt.xlabel('Longitude [deg]')
+    plt.ylabel('Latitude [deg]')
+    plt.colorbar(label='Flow rate [veh/s]')
+    plt.title('Cumulative flow rates [veh/s]')
+
+    # # Save figure.
+    # FIGURES_DIR = Path(r'C:\Users\michi\Dropbox\TU\Thesis\04_Prelim\Figures')
+    # root = Tk()
+    # savefile = filedialog.asksaveasfilename(initialdir=FIGURES_DIR, defaultextension=".svg")
+    # root.destroy()
+    # plt.savefig(savefile)
+
+    # Plot northbound flow rates.
+    north_df = routing.copy()
+    north_df.loc[north_df['hdg'] != 0, 'flow_rate'] = 0
+    north_flow_rates = (north_df.groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
+                        .pivot('lat', 'lon', 'flow_rate'))
+
+    plt.figure(num=2)
+    plt.imshow(north_flow_rates, extent=[north_df['lon'].min(), north_df['lon'].max(),
+                                         north_df['lat'].min(), north_df['lat'].max()])
+    plt.xlabel('Longitude [deg]')
+    plt.ylabel('Latitude [deg]')
+    plt.colorbar(label='Flow rate [veh/s]')
+    plt.title('Northbound flow rates [veh/s]')
