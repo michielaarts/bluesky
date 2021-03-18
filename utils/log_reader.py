@@ -198,12 +198,12 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         return flst, all_ac
 
 
-def plot_result(result: dict) -> None:
+def plot_result(result: dict) -> List[plt.Figure]:
     """
     Plots the results.
 
     :param result:
-    :return: None
+    :return: List with conf_fig and flst_fig handles
     """
     # Initialize plots.
     conf_fig, conf_axs = plt.subplots(2, 3, num=1)
@@ -266,6 +266,21 @@ def plot_result(result: dict) -> None:
             ax.set_xlabel('Inst. no. of aircraft [-]')
             ax.legend()
 
+    return [conf_fig, flst_fig]
+
+
+def save_plots(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
+    """
+    Saves the figures
+
+    :param fig_list: List with conf_fig and flst_fig
+    :param name: save name
+    :param output_dir:
+    :return: None
+    """
+    for fig in fig_list:
+        fig.savefig(output_dir / 'RESULT' / f'{name}_{fig.number}.svg', bbox_inches='tight')
+
 
 if __name__ == '__main__':
     res = create_result_dict()
@@ -276,4 +291,5 @@ if __name__ == '__main__':
     # with open(res_pkl, 'rb') as f:
     #     res = pkl.load(f)
 
-    plot_result(res)
+    figs = plot_result(res)
+    save_plots(figs, res['name'])
