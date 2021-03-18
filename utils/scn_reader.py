@@ -48,7 +48,7 @@ def create_routing_df(scn: dict) -> pd.DataFrame:
                     else:
                         corner = False
                     routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
-                                                   'lat': via_node['lat'], 'lon': via_node['lon']}
+                                                      'lat': via_node['lat'], 'lon': via_node['lon']}
 
     # Flow rate is approx. the number of passes of that node divided by the logging time.
     routing_df['flow_rate'] = routing_df['num'] / scn['duration'][1]
@@ -58,8 +58,8 @@ def create_routing_df(scn: dict) -> pd.DataFrame:
 if __name__ == '__main__':
     # Select file.
     root = Tk()
-    SCN_DIR = Path('../scenario/URBAN/Data/')
-    filename = filedialog.askopenfilename(initialdir=SCN_DIR)
+    SCN_DATA_DIR = Path('../scenario/URBAN/Data/')
+    filename = filedialog.askopenfilename(initialdir=SCN_DATA_DIR, filetypes=[('Scenario pickle', '*.pkl')])
     root.destroy()
 
     with open(Path(filename), 'rb') as f:
@@ -83,7 +83,8 @@ if __name__ == '__main__':
     # # Save figure.
     # FIGURES_DIR = Path(r'C:\Users\michi\Dropbox\TU\Thesis\04_Prelim\Figures')
     # root = Tk()
-    # savefile = filedialog.asksaveasfilename(initialdir=FIGURES_DIR, defaultextension=".svg")
+    # savefile = filedialog.asksaveasfilename(initialdir=FIGURES_DIR,
+    #                                         filetypes=[("Vector image", "*.svg"), ("EPS", "*.eps"), ("Any", "*")])
     # root.destroy()
     # plt.savefig(savefile)
 

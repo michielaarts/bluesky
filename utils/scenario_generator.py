@@ -274,7 +274,7 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10., 100., 200., 750.])
+    N_INST = np.array([10., 20.])
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
