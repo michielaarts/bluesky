@@ -12,6 +12,7 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
+from scn_reader import create_routing_df, plot_flow_rates
 
 
 class ScenarioGenerator:
@@ -274,7 +275,7 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10., 20.])
+    N_INST = np.array([500., 1500.])
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
@@ -293,3 +294,8 @@ if __name__ == '__main__':
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
     all_scenarios = scen_gen.create_scenario(N_INST, SPEED, DURATION, S_H, S_V, T_L)
     scen_gen.write_scenario(all_scenarios, prefix=PREFIX)
+
+    # Plot flow rates of first scenario for validation.
+    print('Creating flow rates plot for first scenario...')
+    flow_df, routing_df = create_routing_df(all_scenarios[0])
+    plot_flow_rates(routing_df)

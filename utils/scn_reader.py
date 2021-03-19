@@ -79,6 +79,26 @@ def create_routing_df(scn: dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
     return flow_df, routing_df
 
 
+def plot_flow_rates(routing_df: pd.DataFrame) -> None:
+    """
+    Plots the flow rates of a routing_df.
+
+    :param routing_df: dataframe from create_routing_df
+    :return: None
+    """
+    flow_rates = (routing_df.copy()
+                  .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
+                  .pivot('lat', 'lon', 'flow_rate'))
+
+    plt.figure()
+    plt.imshow(flow_rates, extent=[routing_df['lon'].min(), routing_df['lon'].max(),
+                                   routing_df['lat'].min(), routing_df['lat'].max()])
+    plt.xlabel('Longitude [deg]')
+    plt.ylabel('Latitude [deg]')
+    plt.colorbar(label='Flow rate [veh/s]')
+    plt.title('Cumulative flow rates [veh/s]')
+
+
 if __name__ == '__main__':
     # Select file.
     root = Tk()
@@ -91,18 +111,7 @@ if __name__ == '__main__':
 
     flows, routing = create_routing_df(scenario)
 
-    flow_rates = (routing.copy()
-                  .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
-                  .pivot('lat', 'lon', 'flow_rate'))
-
-    # Plot flow rates.
-    plt.figure(num=1)
-    plt.imshow(flow_rates, extent=[routing['lon'].min(), routing['lon'].max(),
-                                   routing['lat'].min(), routing['lat'].max()])
-    plt.xlabel('Longitude [deg]')
-    plt.ylabel('Latitude [deg]')
-    plt.colorbar(label='Flow rate [veh/s]')
-    plt.title('Cumulative flow rates [veh/s]')
+    plot_flow_rates(routing)
 
     # # Save figure.
     # FIGURES_DIR = Path(r'C:\Users\michi\Dropbox\TU\Thesis\04_Prelim\Figures')
@@ -118,11 +127,10 @@ if __name__ == '__main__':
     north_flow_rates = (north_df.groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
                         .pivot('lat', 'lon', 'flow_rate'))
 
-    plt.figure(num=2)
+    plt.figure()
     plt.imshow(north_flow_rates, extent=[north_df['lon'].min(), north_df['lon'].max(),
                                          north_df['lat'].min(), north_df['lat'].max()])
     plt.xlabel('Longitude [deg]')
     plt.ylabel('Latitude [deg]')
     plt.colorbar(label='Flow rate [veh/s]')
     plt.title('Northbound flow rates [veh/s]')
-
