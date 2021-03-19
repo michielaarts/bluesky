@@ -11,23 +11,27 @@ from tkinter import Tk, filedialog
 from pathlib import Path
 import pandas as pd
 from bluesky.tools.geo import kwikqdrdist
+from typing import Tuple
 
 
-def create_routing_df(scn: dict) -> pd.DataFrame:
+def create_routing_df(scn: dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Create routing dataframe.
 
     Note: may take a long time for densities > 100 inst. no. of ac.
 
     :param scn: scenario dict from scenario_generator.py
-    :return: Routing dataframe
+    :return: (Flows per node, Routing dataframe)
     """
     all_angles = np.array(range(9)) * 45
     corner_angles = np.array(range(4)) * 90 + 45
     index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
     routing_df = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
+    origins = {}
+    destinations = {}
     for ac in scn['scenario']:
         if scn['duration'][0] < ac['departure_time'] < sum(scn['duration'][:2]):
+            # Extract path per aircraft.
             for i in range(len(ac['path']) - 2):
                 # Does not include origin and destination passages of nodes.
                 frm, via, to = ac['path'][i:i+3]
@@ -49,10 +53,30 @@ def create_routing_df(scn: dict) -> pd.DataFrame:
                         corner = False
                     routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
                                                       'lat': via_node['lat'], 'lon': via_node['lon']}
+            # Add origins and destinations per aircraft.
+            if ac['origin'] in origins.keys():
+                origins[ac['origin']] += 1
+            else:
+                origins[ac['origin']] = 1
+            if ac['destination'] in destinations.keys():
+                destinations[ac['destination']] += 1
+            else:
+                destinations[ac['destination']] = 1
 
     # Flow rate is approx. the number of passes of that node divided by the logging time.
     routing_df['flow_rate'] = routing_df['num'] / scn['duration'][1]
-    return routing_df
+    for key in origins.keys():
+        origins[key] = origins[key] / scn['duration'][1]
+    for key in destinations.keys():
+        destinations[key] = destinations[key] / scn['duration'][1]
+
+    # Pivot routing dataframe and add departing traffic.
+    flow_df = (routing_df.groupby(['via', 'hdg'])['flow_rate']
+               .agg('sum').unstack('hdg')
+               .merge(pd.Series(origins, name='origins'), how='left', left_index=True, right_index=True)
+               .merge(pd.Series(destinations, name='destinations'), how='left', left_index=True, right_index=True))
+
+    return flow_df, routing_df
 
 
 if __name__ == '__main__':
@@ -65,7 +89,7 @@ if __name__ == '__main__':
     with open(Path(filename), 'rb') as f:
         scenario = pkl.load(f)
 
-    routing = create_routing_df(scenario)
+    flows, routing = create_routing_df(scenario)
 
     flow_rates = (routing.copy()
                   .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
@@ -101,3 +125,4 @@ if __name__ == '__main__':
     plt.ylabel('Latitude [deg]')
     plt.colorbar(label='Flow rate [veh/s]')
     plt.title('Northbound flow rates [veh/s]')
+

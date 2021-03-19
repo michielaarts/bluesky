@@ -90,7 +90,7 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
         # Create routing df.
         if run.endswith('NR'):
             print(f'Creating routing dataframe for {run}')
-            result[run]['routing'] = create_routing_df(result[run]['scn'])
+            result[run]['routing'], _ = create_routing_df(result[run]['scn'])
         else:
             nr_run = run[:-2] + 'NR'
             result[run]['routing'] = result[nr_run]['routing']
