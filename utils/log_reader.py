@@ -77,7 +77,7 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
                     else:
                         raise ValueError('Select flstlog or conflogs')
     else:
-        raise NotImplemented('Non-batch files not yet implemented')
+        raise NotImplementedError('Non-batch files not yet implemented')
     tk_root.destroy()
 
     for run in result.keys():

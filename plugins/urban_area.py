@@ -36,10 +36,11 @@ flst_header = \
     'Pilot ALT [ft], ' + \
     'Pilot SPD (TAS) [m/s], ' + \
     'Pilot HDG [deg], ' + \
-    'Pilot VS [fpm]' + '\n'
+    'Pilot VS [fpm]' + \
+    'CR [bool]' + '\n'
 
 flst_vars = 'arrival_time, callsign, departure_time, flight_time, dist2D, dist3D, work_done, lat, lon, alt, tas,' \
-           'vs, hdg, asas, apalt, aptas, aphdg, apvs\n'
+           'vs, hdg, asas, apalt, aptas, aphdg, apvs, cr\n'
 
 conf_header = \
     '#######################################################\n' + \
@@ -209,6 +210,7 @@ class Area(Entity):
                 traf.aporasas.tas[del_idx],
                 traf.aporasas.hdg[del_idx],
                 traf.aporasas.vs[del_idx] / fpm,
+                traf.cr.do_cr
             )
             traf.delete(del_idx)
 

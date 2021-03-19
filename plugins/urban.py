@@ -1,11 +1,12 @@
 """ Urban environment orthogonal grid plugin """
 import numpy as np
 from typing import List, Tuple
-
+import pandas as pd
 from bluesky import navdb
 from bluesky.tools.aero import nm
 from bluesky.core import Entity
 import random
+from bluesky.tools.geo import kwikqdrdist
 
 N_ROWS = 19
 N_COLS = N_ROWS
@@ -70,6 +71,7 @@ class UrbanGrid(Entity):
         self.max_lon = None
 
         self._calculated_avg = None
+        self._flow_df = None
 
         self.create_nodes()
         self.load_edges()
@@ -280,7 +282,7 @@ class UrbanGrid(Entity):
                             # Keep new node.
                             shortest_paths[next_id] = next_dict
                     else:
-                        raise NotImplemented(f'Shortest path prio {prio} not yet implemented')
+                        raise NotImplementedError(f'Shortest path prio {prio} not yet implemented')
 
             next_destinations = {node: shortest_paths[node] for node in shortest_paths if node not in visited}
 
@@ -304,7 +306,7 @@ class UrbanGrid(Entity):
                         min_dist = min_turns_nodes[node]['dist']
                         current = node
             else:
-                raise NotImplemented(f'Shortest path prio {prio} not yet implemented')
+                raise NotImplementedError(f'Shortest path prio {prio} not yet implemented')
 
             # Sanity check
             if current in visited:
@@ -324,22 +326,109 @@ class UrbanGrid(Entity):
 
         return path, pathlength, path_alt_variatons, path_turns
 
+    def _calculate_avg_route_length(self) -> None:
+        """
+        Calculates the average route length through the grid.
+
+        :return: None
+        """
+        pathlengths = np.zeros(1000)
+        for i in range(len(pathlengths)):
+            origin = random.choice(self.od_nodes)
+            destination = origin
+            while destination == origin:
+                destination = random.choice(self.od_nodes)
+            _, pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
+        self._calculated_avg = float(np.mean(pathlengths))
+
     @property
     def avg_route_length(self) -> float:
         """
-        The average route length through the grid.
+        Getter for the average route length through the grid.
 
         :return: avg_route_length [km]: float
         """
         if self._calculated_avg is None:
-            # Calculate average route length.
-            pathlengths = np.zeros(1000)
-            for i in range(len(pathlengths)):
-                origin = random.choice(self.od_nodes)
-                destination = origin
-                while destination == origin:
-                    destination = random.choice(self.od_nodes)
-                _, pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
-            self._calculated_avg = float(np.mean(pathlengths))
-
+            self._calculate_avg_route_length()
         return self._calculated_avg
+
+    def _create_flow_df(self) -> None:
+        """
+        Creates a routing dataframe, to use for flow rates.
+
+        :return: None
+        """
+        iterations = 1000
+        all_angles = np.array(range(9)) * 45
+        corner_angles = np.array(range(4)) * 90 + 45
+        index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
+        routing_df = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
+        origins = {}
+        destinations = {}
+
+        # Gather paths.
+        paths = np.zeros(iterations, dtype='object')
+        for i in range(len(paths)):
+            origin = random.choice(self.od_nodes)
+            destination = origin
+            while destination == origin:
+                destination = random.choice(self.od_nodes)
+            paths[i], _, _, _ = self.calculate_shortest_path(origin, destination)
+
+        # Loop through paths.
+        for path in paths:
+            for i in range(len(path) - 2):
+                # Does not include origin and destination passages of nodes.
+                frm, via, to = path[i:i + 3]
+                if routing_df.index.isin([(frm, via, to)]).any():
+                    routing_df.loc[(frm, via, to)]['num'] += 1
+                else:
+                    # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
+                    frm_node = self.nodes[frm]
+                    via_node = self.nodes[via]
+                    to_node = self.nodes[to]
+                    qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
+                                         to_node['lat'], to_node['lon'])
+                    hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
+                    if hdg == 360:
+                        hdg = 0.
+                    if hdg in corner_angles:
+                        corner = True
+                    else:
+                        corner = False
+                    routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
+                                                      'lat': via_node['lat'], 'lon': via_node['lon']}
+            # Add origins and destinations per aircraft.
+            if path[0] in origins.keys():
+                origins[path[0]] += 1
+            else:
+                origins[path[0]] = 1
+            if path[-1] in destinations.keys():
+                destinations[path[-1]] += 1
+            else:
+                destinations[path[-1]] = 1
+
+        # Flow rate is approx. the number of passes of that node divided by the logging time.
+        routing_df['flow_rate'] = routing_df['num'] / iterations
+        for key in origins.keys():
+            origins[key] = origins[key] / iterations
+        for key in destinations.keys():
+            destinations[key] = destinations[key] / iterations
+
+        # Pivot routing dataframe and add departing traffic.
+        flow_df = (routing_df.groupby(['via', 'hdg'])['flow_rate']
+                   .agg('sum').unstack('hdg')
+                   .merge(pd.Series(origins, name='origins'), how='left', left_index=True, right_index=True)
+                   .merge(pd.Series(destinations, name='destinations'), how='left', left_index=True, right_index=True))
+        self._flow_df = flow_df
+
+    @property
+    def flow_df(self) -> pd.DataFrame:
+        """
+        Getter for the flow rate dataframe.
+
+        :return: the flow rate dataframe
+        """
+        if self._flow_df is None:
+            self._create_flow_df()
+        return self._flow_df
