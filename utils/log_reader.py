@@ -176,6 +176,14 @@ def process_result(result: dict) -> dict:
 
 
 def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -> dict:
+    """
+    Extracts the mean and total variables during the logging period from the CONFLOG.
+
+    :param conf_df: CONFLOG dataframe
+    :param start_time: Start time of logging period
+    :param end_time: End time of logging period
+    :return: Dict with conflict values
+    """
     logging_df = conf_df[(conf_df['t'] >= start_time) & (conf_df['t'] < end_time)]
     ni = logging_df[['ni_ac', 'ni_conf', 'ni_los']].mean()
     ntotal = (logging_df[['ntotal_ac', 'ntotal_conf', 'ntotal_los']].iloc[-1] -
@@ -184,10 +192,24 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
     conf = ni.to_dict()
     conf.update(ntotal.to_dict())
     conf['cr'] = cr
+
+    # Sanity check if all scenarios are completely cooled down.
+    if conf_df['ni_ac'].iloc[-1] != 0:
+        print(f"WARNING: Scenario for N_inst={ni}, with CR O{'N' if cr else 'FF'} did not completely cool down!")
+
     return conf
 
 
 def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, ac=None) -> Tuple[dict, np.ndarray]:
+    """
+    Extracts the mean and total variables during the logging period of the FLSTLOG.
+
+    :param flst_df: FLSTLOG dataframe
+    :param start_time: Start time of logging period
+    :param end_time: End time of logging period
+    :param ac: List of aircraft extracted in the NR FLSTLOG logging period
+    :return: Tuple with [flst dict, list of ac extracted]
+    """
     if ac is not None:
         # WR case.
         logging_df = flst_df[flst_df['callsign'].isin(ac)]
@@ -207,7 +229,7 @@ def plot_result(result: dict) -> List[plt.Figure]:
     """
     Plots the results.
 
-    :param result:
+    :param result: dict from process_result
     :return: List with conf_fig and flst_fig handles
     """
     # Initialize plots.
