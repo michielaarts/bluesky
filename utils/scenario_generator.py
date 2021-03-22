@@ -40,7 +40,8 @@ class ScenarioGenerator:
         self.grid_area = self.n_rows * self.grid_width + self.n_cols * self.grid_height  # km2
         self.avg_route_length = self.urban_grid.avg_route_length * 1000  # m
 
-    def create_scenario(self, n_inst: np.ndarray, speed: np.ndarray, duration: Tuple[float, float, float],
+    def create_scenario(self, n_inst: np.ndarray, repetitions: int,
+                        speed: np.ndarray, duration: Tuple[float, float, float],
                         h_sep: np.ndarray, v_sep: np.ndarray, t_lookahead: np.ndarray, ac_type: str = 'M600'
                         ) -> list:
         """
@@ -48,6 +49,7 @@ class ScenarioGenerator:
         All other inputs are either an array of len(n_inst) or a float.
 
         :param n_inst: Desired inst. no. of aircraft [km^-2] - optionally an array, determines size
+        :param repetitions: Number of repetitions of n_inst [-]
         :param speed: Undisturbed speed of aircraft [m/s] - optionally an array
         :param duration: Scenario duration [s] - Tuple[build-up, experiment, cool-down]
         :param h_sep: horizontal separation [m] - optionally an array
@@ -85,47 +87,51 @@ class ScenarioGenerator:
         # Loop through densities.
         all_scen = []
         for (n_i, V, s_h, s_v, t_l) in zip(n_inst, speed, h_sep, v_sep, t_lookahead):
-            print(f'Calculating scenario for N_inst={n_i}...')
+            for rep in range(repetitions):
+                print(f'Calculating scenario for N_inst={n_i}, Rep={rep}...')
 
-            # Determine departure times.
-            avg_route_duration = self.avg_route_length / V
-            spawn_rate = n_i / avg_route_duration
-            spawn_interval = 1 / spawn_rate
-            n_total = round(T * spawn_rate)
-            # departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))  # Exponential distribution.
-            # Exponential is more realistic, but makes comparison with analytical model less clear.
-            departure_times = np.array(range(n_total)) * spawn_interval  # Uniform interval.
-            departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99, size=n_total)  # Add noise.
+                # Determine departure times.
+                avg_route_duration = self.avg_route_length / V
+                spawn_rate = n_i / avg_route_duration
+                spawn_interval = 1 / spawn_rate
+                n_total = round(T * spawn_rate)
+                # Exponential distribution.
+                # departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))
+                # Exponential is more realistic, but makes comparison with analytical model less clear.
+                # Uniform interval.
+                departure_times = np.array(range(n_total)) * spawn_interval
+                # Add noise.
+                departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99, size=n_total)
 
-            # Calculate origin-destination combinations and routes.
-            od_nodes = self.urban_grid.od_nodes
-            prev_origin = None
-            prev_destination = None
-            all_ac = []
-            for ac_id in range(len(departure_times)):
-                origin = random.choice(od_nodes)
-                while origin == prev_origin:
+                # Calculate origin-destination combinations and routes.
+                od_nodes = self.urban_grid.od_nodes
+                prev_origin = None
+                prev_destination = None
+                all_ac = []
+                for ac_id in range(len(departure_times)):
                     origin = random.choice(od_nodes)
+                    while origin == prev_origin:
+                        origin = random.choice(od_nodes)
 
-                destination = random.choice(od_nodes)
-                while destination == origin or destination == prev_destination:
                     destination = random.choice(od_nodes)
+                    while destination == origin or destination == prev_destination:
+                        destination = random.choice(od_nodes)
 
-                path, path_length, _, _ = self.urban_grid.calculate_shortest_path(origin, destination)
+                    path, path_length, _, _ = self.urban_grid.calculate_shortest_path(origin, destination)
 
-                ac_dict = {'id': ac_id, 'departure_time': departure_times[ac_id],
-                           'origin': origin, 'destination': destination,
-                           'path': path, 'path_length': path_length,
-                           'ac_type': ac_type}
-                all_ac.append(ac_dict)
-                prev_origin = origin
-                prev_destination = destination
+                    ac_dict = {'id': ac_id, 'departure_time': departure_times[ac_id],
+                               'origin': origin, 'destination': destination,
+                               'path': path, 'path_length': path_length,
+                               'ac_type': ac_type}
+                    all_ac.append(ac_dict)
+                    prev_origin = origin
+                    prev_destination = destination
 
-            scen_dict = {'n_inst': n_i, 'n_total': n_total,
-                         'speed': V, 'duration': duration,
-                         's_h': s_h, 's_v': s_v, 't_l': t_l,
-                         'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes}
-            all_scen.append(scen_dict)
+                scen_dict = {'n_inst': n_i, 'rep': rep, 'n_total': n_total,
+                             'speed': V, 'duration': duration,
+                             's_h': s_h, 's_v': s_v, 't_l': t_l,
+                             'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes}
+                all_scen.append(scen_dict)
         return all_scen
 
     @staticmethod
@@ -159,6 +165,7 @@ class ScenarioGenerator:
         all_scn_files = []
         for scn in all_scen:
             n_inst = scn['n_inst']
+            rep = scn['rep']
             spd = scn['speed']
             tas = spd / kts
             duration = scn['duration']
@@ -168,18 +175,19 @@ class ScenarioGenerator:
             departure_alt = cruise_alt - scn['s_v'] * 1.5  # ft
 
             # Save data to .pkl file.
-            pkl_file = f'{prefix}_N{n_inst:.0f}.pkl'
+            pkl_file = f'{prefix}_N{n_inst:.0f}_R{rep:.0f}.pkl'
             with open(pkl_path / pkl_file, 'wb') as f:
                 pkl.dump(scn, f, protocol=pkl.HIGHEST_PROTOCOL)
                 print(f'Written {pkl_path / pkl_file}')
 
             # Save scenario to .scn file.
-            scn_file = f'{prefix}_N{n_inst:.0f}.scn'
+            scn_file = f'{prefix}_N{n_inst:.0f}_R{rep:.0f}.scn'
             all_scn_files.append(scn_file)
             with open(scn_path / scn_file, 'w') as f:
                 f.write('# ########################################### #\n')
                 f.write(f'# Scenario: {scn_file}\n')
                 f.write(f'# Instantaneous number of aircraft: {n_inst:.0f}\n')
+                f.write(f'# Repetition no.: {rep:.0f}\n')
                 f.write(f'# Speed: {spd:.1f}m/s\n')
                 f.write(f'# Duration (build-up, experiment, cool-down): {duration}s\n')
                 f.write(f'# Horizontal separation: {scn["s_h"]:.1f}m\n')
@@ -248,6 +256,7 @@ class ScenarioGenerator:
                         f.write(f'# File: {fname}\n')
                     f.write(f'# Instantaneous number of aircraft: '
                             f'{", ".join(str(scn["n_inst"]).format(".0f") for scn in all_scen)}\n')
+                    f.write(f'# Number of repetitions: {all_scen[0]["rep"]:.0f}\n')
                     f.write(f'# Speed: '
                             f'{", ".join(str(scn["speed"]).format(".1f") for scn in all_scen)} m/s\n')
                     f.write(f'# Duration: '
@@ -275,7 +284,8 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([500., 1500.])
+    N_INST = np.array([25., 100.])
+    REPETITIONS = 5
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
@@ -292,7 +302,7 @@ if __name__ == '__main__':
     T_L = 20.  # s
 
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
-    all_scenarios = scen_gen.create_scenario(N_INST, SPEED, DURATION, S_H, S_V, T_L)
+    all_scenarios = scen_gen.create_scenario(N_INST, REPETITIONS, SPEED, DURATION, S_H, S_V, T_L)
     scen_gen.write_scenario(all_scenarios, prefix=PREFIX)
 
     # Plot flow rates of first scenario for validation.
