@@ -162,12 +162,6 @@ class ScenarioGenerator:
         if not pkl_path.is_dir():
             pkl_path.mkdir(parents=True, exist_ok=True)
 
-        # Save urban grid to .pkl file.
-        pkl_file = f'{prefix}_urban_grid.pkl'
-        with open(pkl_path / pkl_file, 'wb') as f:
-            pkl.dump(self.urban_grid, f, protocol=pkl.HIGHEST_PROTOCOL)
-            print(f'Written urban grid to {pkl_path / pkl_file}')
-
         all_scn_files = []
         for scn in all_scen:
             n_inst = scn['n_inst']
@@ -290,16 +284,28 @@ class ScenarioGenerator:
 
                 print(f'Written {scn_path / scn_file}')
 
+    def save_urban_grid(self, prefix: str = '', pkl_path: Path = Path('../scenario/URBAN/Data/')) -> None:
+        """ Save urban grid to .pkl file. """
+        # Ensure flow df is evaluated.
+        # Note: this may take >5 mins.
+        _ = self.urban_grid.flow_df
+
+        # Save to pickle.
+        pkl_file = f'{prefix}_urban_grid.pkl'
+        with open(pkl_path / pkl_file, 'wb') as f:
+            pkl.dump(self.urban_grid, f, protocol=pkl.HIGHEST_PROTOCOL)
+            print(f'Written urban grid to {pkl_path / pkl_file}')
+
 
 if __name__ == '__main__':
-    N_INST = np.array([25, 100, 250, 500, 1000])
+    N_INST = np.array([10, 50, 100, 250])
     REPETITIONS = 2
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'trial_run'
+    PREFIX = 'test1'
 
     N_ROWS = 19
     N_COLS = N_ROWS
@@ -312,6 +318,7 @@ if __name__ == '__main__':
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
     all_scenarios = scen_gen.create_scenario(N_INST, REPETITIONS, SPEED, DURATION, S_H, S_V, T_L)
     scen_gen.write_scenario(all_scenarios, prefix=PREFIX)
+    scen_gen.save_urban_grid(prefix=PREFIX)
 
     # Plot flow rates of first scenario for validation.
     print('Creating flow rates plot for first scenario...')

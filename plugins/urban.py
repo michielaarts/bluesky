@@ -67,6 +67,7 @@ class UrbanGrid(Entity):
         self.edges = {}
         self.all_nodes = []
         self.od_nodes = []
+        self.isct_nodes = []
         self.center_node = None
 
         # Variables for the bounding box.
@@ -160,6 +161,8 @@ class UrbanGrid(Entity):
         for node in self.all_nodes:
             if len(self.nodes[node]['dir']) == 1:
                 self.od_nodes.append(node)
+            else:
+                self.isct_nodes.append(node)
 
     def load_edges(self) -> None:
         """
@@ -360,7 +363,9 @@ class UrbanGrid(Entity):
         :return: avg_route_length [km]: float
         """
         if self._calculated_avg is None:
+            print('Urban.py>>>Calculating avg. route length. This may take >1min.')
             self._evaluate_routes()
+            print('Urban.py>>>Avg. route length obtained.')
         return self._calculated_avg
 
     def _create_flow_df(self) -> None:
@@ -376,22 +381,25 @@ class UrbanGrid(Entity):
         corner_angles = np.array(range(4)) * 90 + 45
         index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
         routing_df = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
-        origins = {}
-        destinations = {}
+        od_index = pd.Index(self.od_nodes)
+        od_df = pd.DataFrame({'origin': np.zeros(len(od_index)), 'destination': np.zeros(len(od_index))},
+                             index=od_index)
 
         # Get paths.
         if self._paths is None:
             self._evaluate_routes()
 
         # Loop through paths.
+        found_paths = set()
         for path in self._paths:
             for i in range(len(path) - 2):
                 # Does not include origin and destination passages of nodes.
                 frm, via, to = path[i:i + 3]
-                if routing_df.index.isin([(frm, via, to)]).any():
+                if (frm, via, to) in found_paths:
                     routing_df.loc[(frm, via, to)]['num'] += 1
                 else:
                     # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
+                    found_paths.add((frm, via, to))
                     frm_node = self.nodes[frm]
                     via_node = self.nodes[via]
                     to_node = self.nodes[to]
@@ -406,29 +414,18 @@ class UrbanGrid(Entity):
                         corner = False
                     routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
                                                       'lat': via_node['lat'], 'lon': via_node['lon']}
-            # Add origins and destinations per aircraft.
-            if path[0] in origins.keys():
-                origins[path[0]] += 1
-            else:
-                origins[path[0]] = 1
-            if path[-1] in destinations.keys():
-                destinations[path[-1]] += 1
-            else:
-                destinations[path[-1]] = 1
+            # Add origins and destinations to od_df.
+            od_df.loc[path[0]]['origin'] += 1
+            od_df.loc[path[-1]]['destination'] += 1
 
-        # Flow rate is approx. the number of passes of that node divided by the logging time.
-        num_iterations = len(self._paths)
-        routing_df['flow_rate'] = routing_df['num'] / num_iterations
-        for key in origins.keys():
-            origins[key] = origins[key] / num_iterations
-        for key in destinations.keys():
-            destinations[key] = destinations[key] / num_iterations
+        # Normalize values.
+        total_values = routing_df['num'].sum() + od_df.to_numpy().sum()
+        routing_df['flow_distribution'] = routing_df['num'] / total_values
+        od_df['origin_distribution'] = od_df['origin'] / total_values
+        od_df['destination_distribution'] = od_df['destination'] / total_values
 
-        # Pivot routing dataframe and add departing traffic.
-        flow_df = (routing_df.groupby(['via', 'hdg'])['flow_rate']
-                   .agg('sum').unstack('hdg')
-                   .merge(pd.Series(origins, name='origins'), how='left', left_index=True, right_index=True)
-                   .merge(pd.Series(destinations, name='destinations'), how='left', left_index=True, right_index=True))
+        # Add od distribution to df.
+        flow_df = routing_df.merge(od_df, how='left', left_on='via', right_index=True)
         self._flow_df = flow_df
 
     @property
@@ -439,5 +436,7 @@ class UrbanGrid(Entity):
         :return: the flow distribution dataframe
         """
         if self._flow_df is None:
+            print('Urban.py>>>Calculating flow dataframe. This may take >5 mins.')
             self._create_flow_df()
+            print('Urban.py>>>Flow dataframe obtained.')
         return self._flow_df

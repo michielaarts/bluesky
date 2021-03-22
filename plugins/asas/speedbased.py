@@ -90,8 +90,10 @@ class SpeedBased(ConflictResolution):
                         and (ac2, ac1) not in self.head_on_conflict_pairs:
                     self.head_on_conflict_pairs.add((ac1, ac2))
                     self.num_head_on_conflicts += 1
-                    print(f"WARNING: A head-on conflict found between {ac1} and {ac2}!")
-                    print(f"         Total this run: {self.num_head_on_conflicts}")
+                    if self.num_head_on_conflicts == 1:
+                        print(f"WARNING: A head-on conflict found between {ac1} and {ac2}!")
+                    elif self.num_head_on_conflicts % 10 == 0:
+                        print(f"WARNING: Total number of head-on conflicts is now {self.num_head_on_conflicts}")
                 # Skip conflict resolution for this conflict.
                 continue
 

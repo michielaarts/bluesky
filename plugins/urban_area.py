@@ -11,6 +11,7 @@ from bluesky import traf, sim
 from bluesky.tools import datalog, areafilter
 from bluesky.core import Entity, timed_function
 from bluesky.tools.aero import ft, fpm
+import datetime
 
 # Log parameters for the flight statistics log
 flst_header = \
@@ -293,6 +294,10 @@ class Area(Entity):
         Add an extra prefix to logs.
         Useful when using pcall in batch scenarios.
         Set before defining area.
+
+        Also prints to the terminal.
+        That way, the batch scenario can be tracked in detached mode.
         """
         self.log_prefix = name
+        print(f'{datetime.datetime.now().strftime("%H:%M:%S")}>Evalating scenario {name}')
         return True, f'Log prefix set to {name}'

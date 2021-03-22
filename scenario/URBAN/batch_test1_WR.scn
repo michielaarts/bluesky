@@ -1,0 +1,70 @@
+# ########################################### #
+# Batch file batch_test1_WR.scn for files:
+# File: test1_N10_R0.scn
+# File: test1_N10_R1.scn
+# File: test1_N50_R0.scn
+# File: test1_N50_R1.scn
+# File: test1_N100_R0.scn
+# File: test1_N100_R1.scn
+# File: test1_N250_R0.scn
+# File: test1_N250_R1.scn
+# Instantaneous number of aircraft: 10, 10, 50, 50, 100, 100, 250, 250
+# Number of repetitions: 0
+# Speed: 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 m/s
+# Duration: (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0) s
+# Horizontal separation: 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0 m
+# Vertical separation: 25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0 ft
+# Look-ahead time: 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0 s
+# Mean route length: 3420.4m
+# ########################################### #
+
+00:00:00.00>PCALL URBAN/test1_N10_R0.scn REL
+00:00:00.00>RESO SPEEDBASED
+00:00:00.00>OP
+00:00:00.00>FF 6750.0
+01:52:30.00>CLOSELOG
+
+01:52:30.00>PCALL URBAN/test1_N10_R1.scn REL
+01:52:30.00>RESO SPEEDBASED
+01:52:30.00>OP
+01:52:30.00>FF 6750.0
+03:45:00.00>CLOSELOG
+
+03:45:00.00>PCALL URBAN/test1_N50_R0.scn REL
+03:45:00.00>RESO SPEEDBASED
+03:45:00.00>OP
+03:45:00.00>FF 6750.0
+05:37:30.00>CLOSELOG
+
+05:37:30.00>PCALL URBAN/test1_N50_R1.scn REL
+05:37:30.00>RESO SPEEDBASED
+05:37:30.00>OP
+05:37:30.00>FF 6750.0
+07:30:00.00>CLOSELOG
+
+07:30:00.00>PCALL URBAN/test1_N100_R0.scn REL
+07:30:00.00>RESO SPEEDBASED
+07:30:00.00>OP
+07:30:00.00>FF 6750.0
+09:22:30.00>CLOSELOG
+
+09:22:30.00>PCALL URBAN/test1_N100_R1.scn REL
+09:22:30.00>RESO SPEEDBASED
+09:22:30.00>OP
+09:22:30.00>FF 6750.0
+11:15:00.00>CLOSELOG
+
+11:15:00.00>PCALL URBAN/test1_N250_R0.scn REL
+11:15:00.00>RESO SPEEDBASED
+11:15:00.00>OP
+11:15:00.00>FF 6750.0
+13:07:30.00>CLOSELOG
+
+13:07:30.00>PCALL URBAN/test1_N250_R1.scn REL
+13:07:30.00>RESO SPEEDBASED
+13:07:30.00>OP
+13:07:30.00>FF 6750.0
+15:00:00.00>CLOSELOG
+
+15:00:00.00>HOLD
+
