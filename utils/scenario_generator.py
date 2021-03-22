@@ -162,6 +162,12 @@ class ScenarioGenerator:
         if not pkl_path.is_dir():
             pkl_path.mkdir(parents=True, exist_ok=True)
 
+        # Save urban grid to .pkl file.
+        pkl_file = f'{prefix}_urban_grid.pkl'
+        with open(pkl_path / pkl_file, 'wb') as f:
+            pkl.dump(self.urban_grid, f, protocol=pkl.HIGHEST_PROTOCOL)
+            print(f'Written urban grid to {pkl_path / pkl_file}')
+
         all_scn_files = []
         for scn in all_scen:
             n_inst = scn['n_inst']
@@ -285,14 +291,14 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([25., 100.])
-    REPETITIONS = 5
+    N_INST = np.array([25, 100, 250, 500, 1000])
+    REPETITIONS = 2
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'urban_grid'
+    PREFIX = 'trial_run'
 
     N_ROWS = 19
     N_COLS = N_ROWS

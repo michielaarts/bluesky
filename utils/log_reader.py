@@ -62,47 +62,51 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
         reso_cases = ['NR']
         if process_wr:
             reso_cases.append('WR')
+        logs = filedialog.askopenfilenames(initialdir=output_folder, title=f'Select all logs for {scenario_name}',
+                                           filetypes=[('log', '*.log')])
         for reso in reso_cases:
             for pcall in pcall_files:
-                scn_name = f'{pcall[:-4]}_{reso}'
+                scn_name = f'{reso}_{pcall[:-4]}'
                 all_scn_names.append(scn_name)
                 result[scn_name] = {'scn_file': pcall}
-                logs = filedialog.askopenfilenames(initialdir=output_folder, title=f'Select logs for {scn_name}',
-                                                   filetypes=[('log', '*.log')])
                 for log in logs:
-                    if 'CONFLOG' in log:
-                        result[scn_name]['conflogfile'] = Path(log)
-                    elif 'FLSTLOG' in log:
-                        result[scn_name]['flstlogfile'] = Path(log)
-                    else:
-                        raise ValueError('Select flstlog or conflogs')
+                    if scn_name.lower() in log.lower():
+                        if 'CONFLOG' in log:
+                            result[scn_name]['conflogfile'] = Path(log)
+                        elif 'FLSTLOG' in log:
+                            result[scn_name]['flstlogfile'] = Path(log)
+                        else:
+                            raise ValueError('Select flstlog or conflogs')
     else:
         raise NotImplementedError('Non-batch files not yet implemented')
     tk_root.destroy()
 
+    pop_runs = []
     for run in result.keys():
         if run == 'name':
             continue
         # Read scenario file.
-        with open(scn_folder / 'Data' / (run[:-3] + '.pkl'), 'rb') as scn_data_file:
+        with open(scn_folder / 'Data' / (run[3:] + '.pkl'), 'rb') as scn_data_file:
             result[run]['scn'] = pkl.load(scn_data_file)
-
-        # Create routing df.
-        if run.endswith('NR'):
-            print(f'Creating routing dataframe for {run}')
-            result[run]['routing'], _ = create_routing_df(result[run]['scn'])
-        else:
-            nr_run = run[:-2] + 'NR'
-            result[run]['routing'] = result[nr_run]['routing']
 
         # Read log files.
         if 'conflogfile' in result[run].keys():
             result[run]['conflog'] = pd.read_csv(result[run]['conflogfile'],
                                                  comment='#', skipinitialspace=True)
+        else:
+            print(f'Could not find conflogfile for scn {run}')
+            pop_runs.append(run)
 
         if 'flstlogfile' in result[run].keys():
             result[run]['flstlog'] = pd.read_csv(result[run]['flstlogfile'],
                                                  comment='#', skipinitialspace=True)
+        else:
+            print(f'Could not find flstlogfile for scn {run}')
+            pop_runs.append(run)
+
+    for run in np.unique(pop_runs):
+        # Pop run from result dict.
+        result.pop(run)
     return result
 
 
@@ -114,7 +118,7 @@ def save_result(result: dict, output_folder: Path = OUTPUT_FOLDER) -> None:
     :param output_folder: Path to output folder
     :return: None
     """
-    # Backup result to pickle
+    # Backup result to pickle.
     result_folder = output_folder / 'RESULT' / ''
     if not result_folder.is_dir():
         result_folder.mkdir(parents=True, exist_ok=True)
@@ -146,7 +150,8 @@ def process_result(result: dict) -> dict:
     :return: extended result dict
     """
 
-    for run in result.keys():
+    for run in sorted(result.keys()):
+        # First process the NR cases, then the WR cases.
         if run == 'name':
             continue
         # Extract logging times.
@@ -156,13 +161,13 @@ def process_result(result: dict) -> dict:
 
         # Process logs.
         result[run]['conf'] = process_conflog(result[run]['conflog'], logging_start, logging_end)
-        if run.endswith('NR'):
+        if run.startswith('NR'):
             # NR case.
             result[run]['flst'], result[run]['ac'] = process_flstlog(result[run]['flstlog'],
                                                                      logging_start, logging_end)
         else:
             # WR case.
-            nr_run = run[:-2] + 'NR'
+            nr_run = 'NR_' + run[3:]
             result[run]['ac'] = result[nr_run]['ac']
             result[run]['flst'], _ = process_flstlog(result[run]['flstlog'],
                                                      logging_start, logging_end,
@@ -218,7 +223,7 @@ def plot_result(result: dict) -> List[plt.Figure]:
     for run in result.keys():
         if run == 'name':
             continue
-        if run.endswith('NR'):
+        if run.startswith('NR'):
             reso = 'NR'
         else:
             reso = 'WR'

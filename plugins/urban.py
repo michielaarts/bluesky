@@ -368,6 +368,7 @@ class UrbanGrid(Entity):
         Creates a flow dataframe, to use as a base for flow rate calculations.
         It expresses the mean expected total passages of a node per single aircraft.
         To convert to a flow rate, the airspeed and n_inst are required.
+        Note: takes a significant amount of time (>5 mins).
 
         :return: None
         """
