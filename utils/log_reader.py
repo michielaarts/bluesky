@@ -213,7 +213,7 @@ def plot_result(result: dict) -> List[plt.Figure]:
     # Initialize plots.
     conf_fig, conf_axs = plt.subplots(2, 3, num=1)
     plt.get_current_fig_manager().window.showMaximized()
-    flst_fig, flst_axs = plt.subplots(1, 2, num=2)
+    flst_fig, flst_axs = plt.subplots(1, 3, num=2)
     plt.get_current_fig_manager().window.showMaximized()
     conf_axs = conf_axs.flatten()
     flst_axs = flst_axs.flatten()
@@ -265,8 +265,11 @@ def plot_result(result: dict) -> List[plt.Figure]:
 
         flst_axs[0].scatter(x, data[reso]['flight_time'], color=color, label=reso)
         flst_axs[0].set_ylabel('Mean flight time [s]')
-        flst_axs[1].scatter(x, data[reso]['dist2D'], color=color, label=reso)
-        flst_axs[1].set_ylabel('Mean 2D distance [m]')
+        flst_axs[1].scatter(x, data[reso]['dist3D'], color=color, label=reso)
+        flst_axs[1].set_ylabel('Mean 3D distance [m]')
+        flst_axs[2].scatter(x, np.array(data[reso]['dist3D']) / np.array(data[reso]['flight_time']),
+                            color=color, label=reso)
+        flst_axs[2].set_ylabel('Mean velocity [m/s]')
         for ax in flst_axs:
             ax.set_xlabel('Inst. no. of aircraft [-]')
             ax.legend()
