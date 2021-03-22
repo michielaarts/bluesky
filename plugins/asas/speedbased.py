@@ -34,6 +34,13 @@ class SpeedBased(ConflictResolution):
         self.behind_angle = np.deg2rad(10)
         self.behind_ratio = 0.9
 
+        # Minimum speed (if allowed by A/C performance). Must be above 0 to prevent erroneous behaviour.
+        self.min_speed = 1E-4
+
+        # Initialize head-on conflict counter. These should not be present in urban airspace.
+        self.num_head_on_conflicts = 0
+        self.head_on_conflict_pairs = set()
+
         with self.settrafarrays():
             # Initialize is_leading traffic array.
             self.is_leading = np.array([], dtype=bool)
@@ -62,6 +69,11 @@ class SpeedBased(ConflictResolution):
         super().create(n)
         self.is_leading[-n:] = True
 
+    def reset(self):
+        super().reset()
+        self.num_head_on_conflicts = 0
+        self.head_on_conflict_pairs = set()
+
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
         # Initialize an array to store the resolution velocity vector for all A/C.
@@ -73,8 +85,15 @@ class SpeedBased(ConflictResolution):
             idx2 = intruder.id.index(ac2)
 
             if 175. < (ownship.trk[idx1] - intruder.trk[idx2]) % 360. < 185.:
-                # Head on conflicts should not be present in an urban airspace, as these cannot be resolved.
-                raise RuntimeError(f'Head-on conflict detected between {ac1} and {ac2}!')
+                # Head-on conflicts should not be present in an urban airspace, as these cannot be resolved.
+                if (ac1, ac2) not in self.head_on_conflict_pairs \
+                        and (ac2, ac1) not in self.head_on_conflict_pairs:
+                    self.head_on_conflict_pairs.add((ac1, ac2))
+                    self.num_head_on_conflicts += 1
+                    print(f"WARNING: A head-on conflict found between {ac1} and {ac2}!")
+                    print(f"         Total this run: {self.num_head_on_conflicts}")
+                # Skip conflict resolution for this conflict.
+                continue
 
             # If A/C indexes are found, then apply speed_based on this conflict pair.
             # Because ADSB is ON, this is done for each aircraft separately.
@@ -103,7 +122,10 @@ class SpeedBased(ConflictResolution):
         newvs = ownship.vs
 
         # Cap the velocity (and prevent reverse flying).
-        newgscapped = np.maximum(0, np.minimum(ownship.perf.vmax, newgs))
+        # Drones that come to a complete stop result in erroneous headings / tracks / conflicts,
+        # therefore: cap the minimum just above 0.
+        min_speed = np.maximum(self.min_speed, ownship.perf.vmin)
+        newgscapped = np.maximum(min_speed, np.minimum(ownship.perf.vmax, newgs))
 
         # Cap the vertical speed.
         vscapped = np.maximum(ownship.perf.vsmin, np.minimum(ownship.perf.vsmax, newvs))
@@ -143,24 +165,18 @@ class SpeedBased(ConflictResolution):
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
-        # if tlos < 0:
-        #     # DEBUG: check for LOS.
-        #     id1 = ownship.id[idx1]
-        #     id2 = intruder.id[idx2]
-        #     print("Deze willen we checken:", id1, id2)
-
         if track_angle < self.behind_angle or track_angle > np.pi * 2 - self.behind_angle:
             # In-airway conflict.
             distance_to_los = dist - s_h
             if distance_to_los < 0 and (abs(ownship.vs[idx1]) > 0 or abs(intruder.vs[idx2]) > 0):
                 # Conflict with climbing / descending aircraft.
-                if abs(ownship.vs[idx1]) > 0:
+                if abs(ownship.vs[idx1]) > 1E-4:
                     if ownship.vs[idx1] < 0 or intruder.vs[idx2] < 0:
                         # TODO NOTE: this is a 2D version, for 3D effects with climbing / descending traffic
                         #  this needs to be updated!
                         # Aircraft already descending out of area, do nothing.
                         return v1 * 0, idx1
-                    if intruder.vs[idx2] > 0:
+                    if intruder.vs[idx2] > 1E-4:
                         # If both are climbing, the lowest aircraft must resolve the conflict.
                         if ownship.alt[idx1] > intruder.alt[idx2]:
                             # Intruder must resolve, do nothing.

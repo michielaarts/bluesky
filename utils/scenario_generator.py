@@ -208,7 +208,7 @@ class ScenarioGenerator:
                 # Pan screen to center node, zoom and hold simulation
                 f.write('# Pan screen to center node\n')
                 f.write(f'{self.tim2txt(0)}>PAN {self.urban_grid.center_node}\n')
-                f.write(f'{self.tim2txt(0)}>ZOOM 20\n')
+                f.write(f'{self.tim2txt(0)}>ZOOM 20\n\n')
 
                 # Set ASAS and RESO
                 f.write('# Set ASAS variables\n')
@@ -218,6 +218,7 @@ class ScenarioGenerator:
                 f.write(f'{self.tim2txt(0)}>DTLOOK {scn["t_l"]}\n\n')
 
                 # Load experiment area and logger.
+                f.write('# Initiate area and logger\n')
                 f.write(f'{self.tim2txt(0)}>LOGPREFIX {scn_file[:-4]}\n')
                 bbox = [self.urban_grid.min_lat - 1, self.urban_grid.min_lon - 1,
                         self.urban_grid.max_lat + 1, self.urban_grid.max_lon + 1]
