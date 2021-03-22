@@ -155,13 +155,17 @@ class SpeedBased(ConflictResolution):
             if distance_to_los < 0 and (abs(ownship.vs[idx1]) > 0 or abs(intruder.vs[idx2]) > 0):
                 # Conflict with climbing / descending aircraft.
                 if abs(ownship.vs[idx1]) > 0:
-                    if abs(intruder.vs[idx2]) > 0:
-                        # Conflicts between two climbing / descending a/c not yet implemented.
-                        # Do nothing.
-                        return v1 * 0, idx1
-                    if ownship.vs[idx1] < 0:
+                    if ownship.vs[idx1] < 0 or intruder.vs[idx2] < 0:
+                        # TODO NOTE: this is a 2D version, for 3D effects with climbing / descending traffic
+                        #  this needs to be updated!
                         # Aircraft already descending out of area, do nothing.
                         return v1 * 0, idx1
+                    if intruder.vs[idx2] > 0:
+                        # If both are climbing, the lowest aircraft must resolve the conflict.
+                        if ownship.alt[idx1] > intruder.alt[idx2]:
+                            # Intruder must resolve, do nothing.
+                            return v1 * 0, idx1
+                        # Else: ownship must resolve, no change in algorithm.
                     # Ownship is climbing / descending, must resolve conflict.
                     # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
                     # Approach such that the time to los becomes dtlookahead * behind_ratio.
@@ -170,7 +174,8 @@ class SpeedBased(ConflictResolution):
                     vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
                     desired_tlos = conf.dtlookahead * self.behind_ratio
                     desired_vertical_vrel = vertical_distance_to_los / desired_tlos
-                    decelerate_factor = 1 - desired_vertical_vrel / ownship.vs[idx1]
+                    resolution_vrel = intruder.vs[idx2] + desired_vertical_vrel
+                    decelerate_factor = 1 - resolution_vrel / ownship.vs[idx1]
 
                     if decelerate_factor < 0:
                         # Acceleration advised, do nothing.
