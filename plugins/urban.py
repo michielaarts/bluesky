@@ -1,4 +1,9 @@
-""" Urban environment orthogonal grid plugin """
+"""
+Urban environment orthogonal grid plugin.
+Can also be used by a scenario_generator to create scenarios, without including this plugin in bluesky.
+
+Created by Michiel Aarts, March 2021
+"""
 import numpy as np
 from typing import List, Tuple
 import pandas as pd
@@ -70,6 +75,8 @@ class UrbanGrid(Entity):
         self.max_lat = None
         self.max_lon = None
 
+        self._paths = None
+        self._pathlengths = None
         self._calculated_avg = None
         self._flow_df = None
 
@@ -326,20 +333,24 @@ class UrbanGrid(Entity):
 
         return path, pathlength, path_alt_variatons, path_turns
 
-    def _calculate_avg_route_length(self) -> None:
+    def _evaluate_routes(self) -> None:
         """
-        Calculates the average route length through the grid.
+        Evaluates 10k routes for avg_route_length and the flow_df.
 
-        :return: None
+        :return:
         """
-        pathlengths = np.zeros(1000)
+        num_iterations = int(1E4)
+        paths = np.zeros(num_iterations, dtype=object)
+        pathlengths = np.zeros(num_iterations, dtype=float)
         for i in range(len(pathlengths)):
             origin = random.choice(self.od_nodes)
             destination = origin
             while destination == origin:
                 destination = random.choice(self.od_nodes)
-            _, pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
-        self._calculated_avg = float(np.mean(pathlengths))
+            paths[i], pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
+        self._paths = paths
+        self._pathlengths = pathlengths
+        self._calculated_avg = float(np.mean(self._pathlengths))
 
     @property
     def avg_route_length(self) -> float:
@@ -349,16 +360,17 @@ class UrbanGrid(Entity):
         :return: avg_route_length [km]: float
         """
         if self._calculated_avg is None:
-            self._calculate_avg_route_length()
+            self._evaluate_routes()
         return self._calculated_avg
 
     def _create_flow_df(self) -> None:
         """
-        Creates a routing dataframe, to use for flow rates.
+        Creates a flow dataframe, to use as a base for flow rate calculations.
+        It expresses the mean expected total passages of a node per single aircraft.
+        To convert to a flow rate, the airspeed and n_inst are required.
 
         :return: None
         """
-        iterations = 1000
         all_angles = np.array(range(9)) * 45
         corner_angles = np.array(range(4)) * 90 + 45
         index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
@@ -366,17 +378,12 @@ class UrbanGrid(Entity):
         origins = {}
         destinations = {}
 
-        # Gather paths.
-        paths = np.zeros(iterations, dtype='object')
-        for i in range(len(paths)):
-            origin = random.choice(self.od_nodes)
-            destination = origin
-            while destination == origin:
-                destination = random.choice(self.od_nodes)
-            paths[i], _, _, _ = self.calculate_shortest_path(origin, destination)
+        # Get paths.
+        if self._paths is None:
+            self._evaluate_routes()
 
         # Loop through paths.
-        for path in paths:
+        for path in self._paths:
             for i in range(len(path) - 2):
                 # Does not include origin and destination passages of nodes.
                 frm, via, to = path[i:i + 3]
@@ -409,11 +416,12 @@ class UrbanGrid(Entity):
                 destinations[path[-1]] = 1
 
         # Flow rate is approx. the number of passes of that node divided by the logging time.
-        routing_df['flow_rate'] = routing_df['num'] / iterations
+        num_iterations = len(self._paths)
+        routing_df['flow_rate'] = routing_df['num'] / num_iterations
         for key in origins.keys():
-            origins[key] = origins[key] / iterations
+            origins[key] = origins[key] / num_iterations
         for key in destinations.keys():
-            destinations[key] = destinations[key] / iterations
+            destinations[key] = destinations[key] / num_iterations
 
         # Pivot routing dataframe and add departing traffic.
         flow_df = (routing_df.groupby(['via', 'hdg'])['flow_rate']
@@ -425,9 +433,9 @@ class UrbanGrid(Entity):
     @property
     def flow_df(self) -> pd.DataFrame:
         """
-        Getter for the flow rate dataframe.
+        Getter for the flow distribution dataframe.
 
-        :return: the flow rate dataframe
+        :return: the flow distribution dataframe
         """
         if self._flow_df is None:
             self._create_flow_df()

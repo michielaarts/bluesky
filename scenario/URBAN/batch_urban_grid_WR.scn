@@ -8,7 +8,7 @@
 # Horizontal separation: 50.0, 50.0 m
 # Vertical separation: 25.0, 25.0 ft
 # Look-ahead time: 20.0, 20.0 s
-# Mean route length: 3436.0m
+# Mean route length: 3421.2m
 # ########################################### #
 
 00:00:00.00>PCALL URBAN/urban_grid_N500.scn REL
