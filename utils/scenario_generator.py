@@ -212,6 +212,7 @@ class ScenarioGenerator:
                 f.write(f'{self.tim2txt(0)}>DTLOOK {scn["t_l"]}\n\n')
 
                 # Load experiment area and logger.
+                f.write(f'{self.tim2txt(0)}>LOGPREFIX {scn_file[:-4]}\n')
                 bbox = [self.urban_grid.min_lat - 1, self.urban_grid.min_lon - 1,
                         self.urban_grid.max_lat + 1, self.urban_grid.max_lon + 1]
                 f.write(f'{self.tim2txt(0)}>AREA {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n\n')

@@ -67,9 +67,12 @@ def reset():
         log.reset()
 
 
-def makeLogfileName(logname):
+def makeLogfileName(logname, prefix):
     timestamp = datetime.now().strftime('%Y%m%d_%H-%M-%S')
-    fname = "%s_%s_%s.log" % (logname, stack.get_scenname(), timestamp)
+    if prefix == '' or prefix.lower() == stack.get_scenname().lower():
+        fname = "%s_%s_%s.log" % (logname, stack.get_scenname(), timestamp)
+    else:
+        fname = "%s_%s_%s_%s.log" % (logname, stack.get_scenname(), prefix, timestamp)
     return settings.log_path + '/' + fname
 
 
@@ -191,10 +194,10 @@ class CSVLogger:
         else:
             raise IOError(f'Tried to log {self.name} in a closed file')
 
-    def start(self):
+    def start(self, prefix: str = ''):
         """ Start this logger. """
         self.tlog = bs.sim.simt
-        self.fname = makeLogfileName(self.name)
+        self.fname = makeLogfileName(self.name, prefix)
         self.open(self.fname)
 
     def reset(self):

@@ -91,6 +91,12 @@ def init_plugin():
             '',
             area.close_log,
             'Close experiment logs'
+        ],
+        'LOGPREFIX': [
+            'LOGPREFIX name',
+            '[txt]',
+            area.set_log_prefix,
+            'Set the log prefix'
         ]
     }
     # init_plugin() should always return these two dicts.
@@ -110,6 +116,7 @@ class Area(Entity):
         self.prevlospairs = set()
         self.ntotal_los = 0
         self.ntotal_ac = 0
+        self.log_prefix = ''
 
         self.flst_log = datalog.crelog('FLSTLOG', None, flst_header)
         self.conf_log = datalog.crelog('CONFLOG', None, conf_header)
@@ -134,6 +141,7 @@ class Area(Entity):
         self.prevlospairs = set()
         self.ntotal_los = 0
         self.ntotal_ac = 0
+        self.log_prefix = ''
 
     def create(self, n=1):
         """ Create is called when new aircraft are created. """
@@ -233,8 +241,8 @@ class Area(Entity):
                 self.active = True
 
                 # Initiate the loggers.
-                self.flst_log.start()
-                self.conf_log.start()
+                self.flst_log.start(prefix=self.log_prefix)
+                self.conf_log.start(prefix=self.log_prefix)
                 self.flst_log.writeline(flst_vars)
                 self.conf_log.writeline(conf_vars)
 
@@ -260,8 +268,8 @@ class Area(Entity):
             areafilter.defineArea('EXPAREA', 'BOX', args[:4], *args[4:])
 
             # Initiate the loggers.
-            self.flst_log.start()
-            self.conf_log.start()
+            self.flst_log.start(prefix=self.log_prefix)
+            self.conf_log.start(prefix=self.log_prefix)
             self.flst_log.writeline(flst_vars)
             self.conf_log.writeline(conf_vars)
 
@@ -279,3 +287,12 @@ class Area(Entity):
         datalog.reset()
         self.reset()
         return True, 'Logs are closed\nExperiment area set to None'
+
+    def set_log_prefix(self, name):
+        """
+        Add an extra prefix to logs.
+        Useful when using pcall in batch scenarios.
+        Set before defining area.
+        """
+        self.log_prefix = name
+        return True, f'Log prefix set to {name}'
