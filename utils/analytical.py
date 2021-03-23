@@ -13,7 +13,7 @@ from pathlib import Path
 from scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm
 
-VS = 113. / fpm
+VS = 113. * fpm
 
 
 class AnalyticalModel:
@@ -41,8 +41,10 @@ class AnalyticalModel:
 
         self.n_inst = np.linspace(10, self.max_value, 10)
 
+        self.flow_proportion = self.expand_flow_proportion()
         self.flow_rates = self.determine_flow_rates()
         self.departure_rate = self.determine_departure_rate()
+        self.arrival_rate = self.departure_rate  # by definition, for a stable system.
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
         self.area = np.power(self.urban_grid.grid_height * 1000 * (self.urban_grid.n_rows - 1), 2)
@@ -81,10 +83,10 @@ class AnalyticalModel:
 
     def determine_from_flow_rates(self, flow_df) -> pd.DataFrame:
         from_flows = flow_df.groupby(['from', 'via']).sum()
+
         departure_flows = pd.DataFrame(
             index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes],
             columns=from_flows.columns)
-
         departure_rate_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
         data = np.ones(departure_flows.shape) * departure_rate_per_node
         departure_flows = pd.DataFrame(data, index=departure_flows.index, columns=departure_flows.columns)
@@ -92,18 +94,21 @@ class AnalyticalModel:
         from_flows = from_flows.append(departure_flows)
         return from_flows
 
-    def general_delay(self):
-        pass
-
-    @staticmethod
-    def stochastic_delay():
-        pass
+    def expand_flow_proportion(self) -> pd.Series:
+        from_proportion = self.urban_grid.flow_df['flow_distribution'].groupby(['from', 'via']).sum()
+        departure_proportion = self.urban_grid.flow_df['origin_distribution'].mean()
+        arrival_proportion = self.urban_grid.flow_df['destination_distribution'].mean()
+        departure_flows = pd.Series(departure_proportion,
+                                    index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes])
+        arrival_flows = pd.Series(arrival_proportion,
+                                  index=[self.urban_grid.od_nodes, ['arrival'] * len(self.urban_grid.od_nodes)])
+        return from_proportion.append(departure_flows).append(arrival_flows)
 
     def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates the delay per vehicle at each node for the provided flow dataframe.
+        Calculates the delay per vehicle at each node for the provided from_flow dataframe.
 
-        :param flow_df:
+        :param flow_df: a from_flow dataframe (from e.g. determine_from_flow_rates())
         :return: Delay dataframe
         """
         delays = pd.DataFrame().reindex_like(flow_df)
@@ -142,8 +147,35 @@ class AnalyticalModel:
 
         return delays
 
-    def wr_model(self) -> None:
+    def update_flow_rates(self, new_n_inst):
         pass
+
+
+    def wr_model(self) -> None:
+        # First iteration.
+        proportional_delay = self.delays.copy()
+        for col in self.delays.columns:
+            proportional_delay[col] = self.delays[col] * self.flow_proportion.loc[self.delays.index]
+        system_delay = proportional_delay.sum() * self.n_inst
+
+        avg_duration = self.urban_grid.avg_route_length * 1000 / self.speed
+        new_duration = system_delay + avg_duration
+        mean_velocities = self.speed * (avg_duration / new_duration)
+
+        # Inst. amount of vehicles scales proportionally with mean_velocity.
+        n_inst = [pd.Series(self.n_inst, index=self.n_inst)]
+        delay = [self.delays]
+        mean_velocities = [pd.Series(self.speed, index=self.n_inst), mean_velocities]
+        for i in range(1, 2):
+            new_ni = self.n_inst * mean_velocities[i - 1] / mean_velocities[i]
+            n_inst.append(new_ni)
+
+            new_flow_df = self.update_flow_rates()
+            new_delays = self.delay_model(new_flow_df)
+
+            # TODO put all in one big iteration loop.
+
+        return mean_velocities, n_inst
 
 
 if __name__ == '__main__':
