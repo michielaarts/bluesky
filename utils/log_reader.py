@@ -193,9 +193,9 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
     conf.update(ntotal.to_dict())
     conf['cr'] = cr
 
-    # Sanity check if all scenarios are completely cooled down.
+    # Sanity check if scenario is completely cooled down.
     if conf_df['ni_ac'].iloc[-1] != 0:
-        print(f"WARNING: Scenario for N_inst={ni}, with CR O{'N' if cr else 'FF'} did not completely cool down!")
+        print(f"WARNING: Scenario for N_inst={ni[0]:.1f}, with CR O{'N' if cr else 'FF'} did not completely cool down!")
 
     return conf
 
@@ -225,12 +225,12 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         return flst, all_ac
 
 
-def plot_result(result: dict) -> List[plt.Figure]:
+def plot_result(result: dict) -> Tuple[List[plt.Figure], dict]:
     """
     Plots the results.
 
     :param result: dict from process_result
-    :return: List with conf_fig and flst_fig handles
+    :return: (List with conf_fig and flst_fig handles, data dict)
     """
     # Initialize plots.
     conf_fig, conf_axs = plt.subplots(2, 3, num=1)
@@ -296,7 +296,7 @@ def plot_result(result: dict) -> List[plt.Figure]:
             ax.set_xlabel('Inst. no. of aircraft [-]')
             ax.legend()
 
-    return [conf_fig, flst_fig]
+    return [conf_fig, flst_fig], data
 
 
 def save_plots(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
@@ -312,6 +312,25 @@ def save_plots(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_
         fig.savefig(output_dir / 'RESULT' / f'{name}_{fig.number}.svg', bbox_inches='tight')
 
 
+def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.DataFrame:
+    """
+    Saves the data to a csv.
+
+    :param data: data dict
+    :param name: save name
+    :param output_dir:
+    :return: data dataframe
+    """
+    df = pd.DataFrame(
+        columns=pd.MultiIndex.from_product([data.keys(), data['NR'].keys()], names=['Reso', 'Parameter'])
+    )
+    for reso in data.keys():
+        for param in data[reso].keys():
+            df[reso, param] = data[reso][param]
+    df.to_csv(output_dir / 'RESULT' / f'{name}.csv')
+    return df
+
+
 if __name__ == '__main__':
     res = create_result_dict()
     res = process_result(res)
@@ -321,5 +340,7 @@ if __name__ == '__main__':
     # with open(res_pkl, 'rb') as f:
     #     res = pkl.load(f)
 
-    figs = plot_result(res)
+    figs, data = plot_result(res)
     save_plots(figs, res['name'])
+    data_df = save_data(data, res['name'])
+
