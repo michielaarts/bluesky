@@ -92,12 +92,14 @@ class AnalyticalModel:
         :param flow_df:
         :return: Delay dataframe
         """
-        isct_delays = pd.DataFrame(columns=self.urban_grid.isct_nodes, index=self.n_inst)
-        departure_delays = pd.DataFrame(columns=self.urban_grid.od_nodes, index=self.n_inst)
+        from_flows = flow_df.groupby(['from', 'via']).sum()
+        delays = pd.DataFrame().reindex_like(from_flows)
+        delays = delays.append(
+            pd.DataFrame(index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes],
+                         columns=delays.columns))
 
         # Intersection delays.
         # Group by direction per intersection.
-        from_flows = flow_df.groupby(['from', 'via']).sum()
         for isct in self.urban_grid.isct_nodes:
             isct_flows = from_flows.iloc[
                 from_flows.index.get_level_values('via') == isct
@@ -113,12 +115,10 @@ class AnalyticalModel:
             total_q = isct_flows.sum()
             total_y = total_q * self.t_X
             total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
-            isct_delay = total_q.copy() * 0
-            flow_1 = isct_flows.iloc[0].squeeze()
-            flow_2 = isct_flows.iloc[1].squeeze()
-            for (q_g, q_r) in [(flow_1, flow_2),
-                               (flow_2, flow_1)]:
+            for (i, j) in [(1, 0), (0, 1)]:
                 # General delay.
+                q_g = isct_flows.iloc[i].squeeze()
+                q_r = isct_flows.iloc[j].squeeze()
                 lambda_u = 1 - self.t_X * q_r
                 c_u = 1 / q_r
                 y = q_g * self.t_X
@@ -128,21 +128,24 @@ class AnalyticalModel:
                 stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
                 stochastic_delay = total_stochastic_delay - stochastic_flow_delay
 
-                isct_delay = isct_delay + general_delay + stochastic_delay
-            isct_delays[isct] = isct_delay
+                # Add to delays df.
+                delays.loc[(from_nodes[i], isct)] = general_delay + stochastic_delay
 
         # Departure delays.
-        via_flows = flow_df.groupby('via').sum()
         departure_flow_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
         for origin in self.urban_grid.od_nodes:
-            passing_flow = via_flows.iloc[via_flows.index == origin].squeeze()
+            origin_flows = from_flows.iloc[from_flows.index.get_level_values('via') == origin]
+            from_nodes = [origin_flows.index.get_level_values('from')[0], 'departure']
+            passing_flow = origin_flows.squeeze()
 
             total_q = passing_flow + departure_flow_per_node
             total_y = total_q * self.t_X
             total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
-            departure_delay = total_q.copy() * 0
-            for (q_g, q_r) in [(passing_flow, departure_flow_per_node),
-                               (departure_flow_per_node, passing_flow)]:
+            flows = [passing_flow, departure_flow_per_node]
+            for (i, j) in [(1, 0), (0, 1)]:
+                q_g = flows[i]
+                q_r = flows[j]
+
                 # General delay.
                 lambda_u = 1 - self.t_X * q_r
                 c_u = 1 / q_r
@@ -153,11 +156,8 @@ class AnalyticalModel:
                 stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
                 stochastic_delay = total_stochastic_delay - stochastic_flow_delay
 
-                departure_delay = departure_delay + general_delay + stochastic_delay
-            departure_delays[origin] = departure_delay
+                delays.loc[(from_nodes[i], origin)] = general_delay + stochastic_delay
 
-        # Merge delays.
-        delays = isct_delays.T.append(departure_delays.T)
         return delays
 
     def wr_model(self) -> None:
