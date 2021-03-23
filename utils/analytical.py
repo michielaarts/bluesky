@@ -43,11 +43,12 @@ class AnalyticalModel:
 
         self.flow_rates = self.determine_flow_rates()
         self.departure_rate = self.determine_departure_rate()
+        self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
         self.area = np.power(self.urban_grid.grid_height * 1000 * (self.urban_grid.n_rows - 1), 2)
         self.c_inst_nr = self.nr_model()
 
-        self.delays = self.delay_model(self.flow_rates)
+        self.delays = self.delay_model(self.from_flow_rates)
 
         self.wr_model()
 
@@ -78,6 +79,19 @@ class AnalyticalModel:
         spawn_rate = self.n_inst / avg_route_duration
         return spawn_rate
 
+    def determine_from_flow_rates(self, flow_df) -> pd.DataFrame:
+        from_flows = flow_df.groupby(['from', 'via']).sum()
+        departure_flows = pd.DataFrame(
+            index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes],
+            columns=from_flows.columns)
+
+        departure_rate_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
+        data = np.ones(departure_flows.shape) * departure_rate_per_node
+        departure_flows = pd.DataFrame(data, index=departure_flows.index, columns=departure_flows.columns)
+
+        from_flows = from_flows.append(departure_flows)
+        return from_flows
+
     def general_delay(self):
         pass
 
@@ -92,33 +106,28 @@ class AnalyticalModel:
         :param flow_df:
         :return: Delay dataframe
         """
-        from_flows = flow_df.groupby(['from', 'via']).sum()
-        delays = pd.DataFrame().reindex_like(from_flows)
-        delays = delays.append(
-            pd.DataFrame(index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes],
-                         columns=delays.columns))
+        delays = pd.DataFrame().reindex_like(flow_df)
 
-        # Intersection delays.
-        # Group by direction per intersection.
-        for isct in self.urban_grid.isct_nodes:
-            isct_flows = from_flows.iloc[
-                from_flows.index.get_level_values('via') == isct
+        # Delay model.
+        for node in self.urban_grid.all_nodes:
+            node_flows = flow_df.iloc[
+                flow_df.index.get_level_values('via') == node
             ].copy()
-            from_nodes = isct_flows.index.get_level_values('from').unique()
+            from_nodes = node_flows.index.get_level_values('from').unique()
             if len(from_nodes) == 1:
                 # Border node, no intersection. Skip.
                 continue
             elif len(from_nodes) != 2:
                 # Sanity check.
-                raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', isct_flows)
+                raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', node_flows)
 
-            total_q = isct_flows.sum()
+            total_q = node_flows.sum()
             total_y = total_q * self.t_X
             total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
             for (i, j) in [(1, 0), (0, 1)]:
                 # General delay.
-                q_g = isct_flows.iloc[i].squeeze()
-                q_r = isct_flows.iloc[j].squeeze()
+                q_g = node_flows.iloc[i].squeeze()
+                q_r = node_flows.iloc[j].squeeze()
                 lambda_u = 1 - self.t_X * q_r
                 c_u = 1 / q_r
                 y = q_g * self.t_X
@@ -129,34 +138,7 @@ class AnalyticalModel:
                 stochastic_delay = total_stochastic_delay - stochastic_flow_delay
 
                 # Add to delays df.
-                delays.loc[(from_nodes[i], isct)] = general_delay + stochastic_delay
-
-        # Departure delays.
-        departure_flow_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
-        for origin in self.urban_grid.od_nodes:
-            origin_flows = from_flows.iloc[from_flows.index.get_level_values('via') == origin]
-            from_nodes = [origin_flows.index.get_level_values('from')[0], 'departure']
-            passing_flow = origin_flows.squeeze()
-
-            total_q = passing_flow + departure_flow_per_node
-            total_y = total_q * self.t_X
-            total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
-            flows = [passing_flow, departure_flow_per_node]
-            for (i, j) in [(1, 0), (0, 1)]:
-                q_g = flows[i]
-                q_r = flows[j]
-
-                # General delay.
-                lambda_u = 1 - self.t_X * q_r
-                c_u = 1 / q_r
-                y = q_g * self.t_X
-                general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
-
-                # Stochastic delay.
-                stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
-                stochastic_delay = total_stochastic_delay - stochastic_flow_delay
-
-                delays.loc[(from_nodes[i], origin)] = general_delay + stochastic_delay
+                delays.loc[(from_nodes[i], node)] = general_delay + stochastic_delay
 
         return delays
 
