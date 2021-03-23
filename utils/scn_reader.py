@@ -64,14 +64,14 @@ def create_routing_df(scn: dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 destinations[ac['destination']] = 1
 
     # Flow rate is approx. the number of passes of that node divided by the logging time.
-    routing_df['flow_rate'] = routing_df['num'] / scn['duration'][1]
+    routing_df['flow_distribution'] = routing_df['num'] / scn['duration'][1]
     for key in origins.keys():
         origins[key] = origins[key] / scn['duration'][1]
     for key in destinations.keys():
         destinations[key] = destinations[key] / scn['duration'][1]
 
     # Pivot routing dataframe and add departing traffic.
-    flow_df = (routing_df.groupby(['via', 'hdg'])['flow_rate']
+    flow_df = (routing_df.groupby(['via', 'hdg'])['flow_distribution']
                .agg('sum').unstack('hdg')
                .merge(pd.Series(origins, name='origins'), how='left', left_index=True, right_index=True)
                .merge(pd.Series(destinations, name='destinations'), how='left', left_index=True, right_index=True))
@@ -87,16 +87,15 @@ def plot_flow_rates(routing_df: pd.DataFrame) -> None:
     :return: None
     """
     flow_rates = (routing_df.copy()
-                  .groupby('via').agg({'flow_rate': 'sum', 'lat': 'mean', 'lon': 'mean'})
-                  .pivot('lat', 'lon', 'flow_rate'))
+                  .groupby('via').agg({'flow_distribution': 'sum', 'lat': 'mean', 'lon': 'mean'})
+                  .pivot('lat', 'lon', 'flow_distribution'))
 
     plt.figure()
     plt.imshow(flow_rates, extent=[routing_df['lon'].min(), routing_df['lon'].max(),
                                    routing_df['lat'].min(), routing_df['lat'].max()])
     plt.xlabel('Longitude [deg]')
     plt.ylabel('Latitude [deg]')
-    plt.colorbar(label='Flow rate [veh/s]')
-    plt.title('Cumulative flow rates [veh/s]')
+    plt.colorbar(label='Flow distribution [-]')
 
 
 if __name__ == '__main__':

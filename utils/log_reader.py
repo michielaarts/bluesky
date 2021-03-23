@@ -1,13 +1,14 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scn_reader import create_routing_df
 from pathlib import Path
 import warnings
 import re
 from typing import List, Tuple
 import pickle as pkl
 from tkinter import Tk, filedialog
+from analytical import AnalyticalModel
+from plugins.urban import UrbanGrid
 
 # Standard inputs.
 OUTPUT_FOLDER = Path('../output/')
@@ -225,11 +226,12 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         return flst, all_ac
 
 
-def plot_result(result: dict) -> Tuple[List[plt.Figure], dict]:
+def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figure], dict]:
     """
     Plots the results.
 
     :param result: dict from process_result
+    :param ana_model: Analytical model
     :return: (List with conf_fig and flst_fig handles, data dict)
     """
     # Initialize plots.
@@ -272,29 +274,32 @@ def plot_result(result: dict) -> Tuple[List[plt.Figure], dict]:
 
         x = data[reso]['ni_ac']
         conf_axs[0].scatter(x, data[reso]['ni_conf'], color=color, label=reso)
-        conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
         conf_axs[1].scatter(x, data[reso]['ni_los'], color=color, label=reso)
-        conf_axs[1].set_ylabel('Inst. no. of los [-]')
         conf_axs[2].scatter(x, data[reso]['ntotal_ac'], color=color, label=reso)
-        conf_axs[2].set_ylabel('Total no. of A/C [-]')
         conf_axs[3].scatter(x, data[reso]['ntotal_conf'], color=color, label=reso)
-        conf_axs[3].set_ylabel('Total no. of conflicts [-]')
         conf_axs[4].scatter(x, data[reso]['ntotal_los'], color=color, label=reso)
-        conf_axs[4].set_ylabel('Total no. of los [-]')
-        for ax in conf_axs:
-            ax.set_xlabel('Inst. no. of aircraft [-]')
-            ax.legend()
 
         flst_axs[0].scatter(x, data[reso]['flight_time'], color=color, label=reso)
-        flst_axs[0].set_ylabel('Mean flight time [s]')
         flst_axs[1].scatter(x, data[reso]['dist3D'], color=color, label=reso)
-        flst_axs[1].set_ylabel('Mean 3D distance [m]')
         flst_axs[2].scatter(x, np.array(data[reso]['dist3D']) / np.array(data[reso]['flight_time']),
                             color=color, label=reso)
-        flst_axs[2].set_ylabel('Mean velocity [m/s]')
-        for ax in flst_axs:
-            ax.set_xlabel('Inst. no. of aircraft [-]')
-            ax.legend()
+
+    conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
+    conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Anal.')
+    conf_axs[1].set_ylabel('Inst. no. of los [-]')
+    conf_axs[2].set_ylabel('Total no. of A/C [-]')
+    conf_axs[3].set_ylabel('Total no. of conflicts [-]')
+    conf_axs[4].set_ylabel('Total no. of los [-]')
+    for ax in conf_axs:
+        ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.legend()
+
+    flst_axs[0].set_ylabel('Mean flight time [s]')
+    flst_axs[1].set_ylabel('Mean 3D distance [m]')
+    flst_axs[2].set_ylabel('Mean velocity [m/s]')
+    for ax in flst_axs:
+        ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.legend()
 
     return [conf_fig, flst_fig], data
 
@@ -331,6 +336,16 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
     return df
 
 
+def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[UrbanGrid, AnalyticalModel]:
+    prefix = re.findall('batch_(.*)_NR', result['name'])[0]
+    grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
+    with open(grid_pkl, 'rb') as f:
+        grid = pkl.load(f)
+    # TODO extract all parameters to use as input for analytical model
+    ana_model = AnalyticalModel(grid, 500., 10., 50., 25., 20.)
+    return grid, ana_model
+
+
 if __name__ == '__main__':
     res = create_result_dict()
     res = process_result(res)
@@ -340,7 +355,8 @@ if __name__ == '__main__':
     # with open(res_pkl, 'rb') as f:
     #     res = pkl.load(f)
 
-    figs, data = plot_result(res)
+    grid, analytical = load_analytical_model(res)
+    figs, data = plot_result(res, analytical)
     save_plots(figs, res['name'])
     data_df = save_data(data, res['name'])
 

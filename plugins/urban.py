@@ -377,10 +377,10 @@ class UrbanGrid(Entity):
 
         :return: None
         """
-        all_angles = np.array(range(9)) * 45
-        corner_angles = np.array(range(4)) * 90 + 45
+        all_angles = np.array(range(5)) * 90
         index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
-        routing_df = pd.DataFrame({'num': [], 'corner': [], 'hdg': [], 'lat': [], 'lon': []}, index=index_df)
+        routing_df = pd.DataFrame({'num': [], 'corner': [], 'from_hdg': [], 'to_hdg': [], 'lat': [], 'lon': []},
+                                  index=index_df)
         od_index = pd.Index(self.od_nodes)
         od_df = pd.DataFrame({'origin': np.zeros(len(od_index)), 'destination': np.zeros(len(od_index))},
                              index=od_index)
@@ -403,16 +403,21 @@ class UrbanGrid(Entity):
                     frm_node = self.nodes[frm]
                     via_node = self.nodes[via]
                     to_node = self.nodes[to]
-                    qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
-                                         to_node['lat'], to_node['lon'])
-                    hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
-                    if hdg == 360:
-                        hdg = 0.
-                    if hdg in corner_angles:
+                    frm_qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
+                                             via_node['lat'], via_node['lon'])
+                    to_qdr, _ = kwikqdrdist(via_node['lat'], via_node['lon'],
+                                            to_node['lat'], to_node['lon'])
+                    frm_hdg = all_angles[np.isclose(frm_qdr, all_angles, atol=5)][0]
+                    to_hdg = all_angles[np.isclose(to_qdr, all_angles, atol=5)][0]
+                    if frm_hdg == 360:
+                        frm_hdg = 0.
+                    if to_hdg == 360:
+                        to_hdg = 0.
+                    if frm_hdg != to_hdg:
                         corner = True
                     else:
                         corner = False
-                    routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'hdg': hdg,
+                    routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'from_hdg': frm_hdg, 'to_hdg': to_hdg,
                                                       'lat': via_node['lat'], 'lon': via_node['lon']}
             # Add origins and destinations to od_df.
             od_df.loc[path[0]]['origin'] += 1

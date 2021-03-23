@@ -12,7 +12,7 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
-from scn_reader import create_routing_df, plot_flow_rates
+from scn_reader import plot_flow_rates
 
 
 class ScenarioGenerator:
@@ -322,5 +322,4 @@ if __name__ == '__main__':
 
     # Plot flow rates of first scenario for validation.
     print('Creating flow rates plot for first scenario...')
-    flow_df, routing_df = create_routing_df(all_scenarios[0])
-    plot_flow_rates(routing_df)
+    plot_flow_rates(scen_gen.urban_grid.flow_df)

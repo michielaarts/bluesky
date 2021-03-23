@@ -299,5 +299,5 @@ class Area(Entity):
         That way, the batch scenario can be tracked in detached mode.
         """
         self.log_prefix = name
-        print(f'{datetime.datetime.now().strftime("%H:%M:%S")}>Evalating scenario {name}')
+        print(f'{datetime.datetime.now().strftime("%H:%M:%S")}>Evaluating scenario {name}')
         return True, f'Log prefix set to {name}'
