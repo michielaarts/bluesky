@@ -293,7 +293,10 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
+    conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr,
+                     color='blue', label=rf'NR Model, $\bar{{t_c}}={ana_model.avg_conflict_duration}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
+    conf_axs[5].plot(ana_model.n_inst, ana_model.n_total, color='purple', label='NR/WR Model')
     conf_axs[5].set_ylabel('Total no. of A/C [-]')
 
     for ax in conf_axs:
@@ -366,6 +369,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
     max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
+    duration = result[all_runs[0]]['scn']['duration']
 
     if np.any([len(np.unique(var)) > 1 for var in (all_speeds, all_s_h, all_s_v, all_t_l)]):
         raise NotImplementedError('Implement multiple analytical models in log_reader')
@@ -375,7 +379,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_v = all_s_v[0]
         t_l = all_t_l[0]
     ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
-                                speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
 

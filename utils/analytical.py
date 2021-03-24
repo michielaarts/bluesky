@@ -19,12 +19,13 @@ VS = 113. * fpm
 class AnalyticalModel:
     def __init__(
             self,
-            urban_grid: UrbanGrid, max_value: float, accuracy: int,
+            urban_grid: UrbanGrid, max_value: float, accuracy: int, duration: Tuple[float, float, float],
             speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS,
     ):
         self.urban_grid = urban_grid
         self.max_value = max_value
         self.accuracy = accuracy
+        self.duration = duration
         self.speed = speed
         self.vs = vs
         self.s_h = s_h
@@ -42,6 +43,7 @@ class AnalyticalModel:
             raise NotImplementedError('Analytical model can only be determined for an equal grid size')
 
         self.n_inst = np.linspace(10, self.max_value, self.accuracy)
+        self.n_total = self.n_inst * self.duration[1] / self.avg_duration
 
         self.flow_proportion = self.expand_flow_proportion()
         self.flow_rates = self.determine_flow_rates()
@@ -50,12 +52,15 @@ class AnalyticalModel:
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
         self.c_inst_nr = self.nr_model()
+        self.avg_conflict_duration = 2.  # s
+        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
 
         self.delays = self.delay_model(self.from_flow_rates)
 
         self.mean_v_wr, self.n_inst_wr, self.mean_duration_wr = self.wr_model()
 
     def nr_model(self) -> np.ndarray:
+        print('Calculating analytical NR model...')
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
         c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.urban_grid.area
@@ -154,6 +159,7 @@ class AnalyticalModel:
         return delays
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        print('Calculating analytical WR model...')
         # Initiate arrays.
         ni = pd.DataFrame({0: self.n_inst}, index=self.n_inst)
         from_flows = [self.from_flow_rates]
@@ -201,6 +207,7 @@ if __name__ == '__main__':
     S_V = 25.  # ft
     T_L = 20.  # s
     SPEED = 10.
+    DURATION = (900., 2700., 900.)
 
     pkl_file = Path(r'../scenario/URBAN/Data/test1_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
