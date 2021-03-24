@@ -357,7 +357,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     prefix = re.findall('batch_(.*)_NR', result['name'])[0]
     grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
     with open(grid_pkl, 'rb') as f:
-        grid = pkl.load(f)
+        urban_grid = pkl.load(f)
 
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
@@ -374,9 +374,9 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_h = all_s_h[0]
         s_v = all_s_v[0]
         t_l = all_t_l[0]
-    ana_model = AnalyticalModel(grid, max_value=max_val, accuracy=25,
+    ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
                                 speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
-    return grid, ana_model
+    return urban_grid, ana_model
 
 
 if __name__ == '__main__':
@@ -389,7 +389,6 @@ if __name__ == '__main__':
     #     res = pkl.load(f)
 
     grid, analytical = load_analytical_model(res)
-    figs, data = plot_result(res, analytical)
+    figs, data_dict = plot_result(res, analytical)
     save_plots(figs, res['name'])
-    data_df = save_data(data, res['name'])
-
+    data_df = save_data(data_dict, res['name'])

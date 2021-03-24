@@ -80,8 +80,6 @@ class ScenarioGenerator:
         if len(t_lookahead) != len(n_inst):
             raise ValueError('Length of look-ahead time array does not match density array')
 
-        T = sum(duration)
-
         # Loop through densities.
         all_scen = []
         for (n_i, V, s_h, s_v, t_l) in zip(n_inst, speed, h_sep, v_sep, t_lookahead):
@@ -92,7 +90,7 @@ class ScenarioGenerator:
                 avg_route_duration = self.urban_grid.avg_route_length / V
                 spawn_rate = n_i / avg_route_duration
                 spawn_interval = 1 / spawn_rate
-                n_total = round(T * spawn_rate)
+                n_total = round(sum(duration) * spawn_rate)
                 # Exponential distribution.
                 # departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))
                 # Exponential is more realistic, but makes comparison with analytical model less clear.
@@ -103,16 +101,17 @@ class ScenarioGenerator:
 
                 # Calculate origin-destination combinations and routes.
                 od_nodes = self.urban_grid.od_nodes
-                prev_origin = None
-                prev_destination = None
+                prev_origins = []
                 all_ac = []
                 for ac_id in range(len(departure_times)):
                     origin = random.choice(od_nodes)
-                    while origin == prev_origin:
+                    while origin in prev_origins:
+                        # Prevent spawning too close to each other.
                         origin = random.choice(od_nodes)
 
                     destination = random.choice(od_nodes)
-                    while destination == origin or destination == prev_destination:
+                    while destination == origin:
+                        # Destination cannot be equal to origin.
                         destination = random.choice(od_nodes)
 
                     path, path_length, _, _ = self.urban_grid.calculate_shortest_path(origin, destination)
@@ -122,8 +121,8 @@ class ScenarioGenerator:
                                'path': path, 'path_length': path_length,
                                'ac_type': ac_type}
                     all_ac.append(ac_dict)
-                    prev_origin = origin
-                    prev_destination = destination
+                    prev_origins.append(origin)
+                    prev_origins = prev_origins[-3:]
 
                 scen_dict = {'n_inst': n_i, 'rep': rep, 'n_total': n_total,
                              'speed': V, 'duration': duration,
@@ -134,8 +133,12 @@ class ScenarioGenerator:
 
     @staticmethod
     def tim2txt(t):
-        """Convert time to timestring: HH:MM:SS.hh"""
-        return time.strftime("%H:%M:%S.", time.gmtime(t)) + f'{(t % 1) * 100:.0f}'.zfill(2)
+        """ Convert time to timestring: HH:MM:SS.hh """
+        hours = int(t / 3600.)
+        minutes = int((t % 3600) / 60.)
+        full_seconds = int(t % 60)
+        hundredths = int((t % 1) * 100)
+        return f'{hours:02d}:{minutes:02d}:{full_seconds:02d}.{hundredths:02d}'
 
     def write_scenario(
         self, all_scen: list, asas: str = 'on',
@@ -192,6 +195,7 @@ class ScenarioGenerator:
                 f.write(f'# Vertical separation: {scn["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scn["t_l"]:.1f}s\n')
                 f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
+                f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
                 f.write('# ########################################### #\n\n')
 
                 # Load urban grid
@@ -268,6 +272,7 @@ class ScenarioGenerator:
                     f.write(f'# Look-ahead time: '
                             f'{", ".join(str(scn["t_l"]).format(".1f") for scn in all_scen)} s\n')
                     f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
+                    f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
                     f.write('# ########################################### #\n\n')
 
                     for i in range(len(all_scen)):
