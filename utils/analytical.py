@@ -19,11 +19,12 @@ VS = 113. * fpm
 class AnalyticalModel:
     def __init__(
             self,
-            urban_grid: UrbanGrid, max_value: float,
+            urban_grid: UrbanGrid, max_value: float, accuracy: int,
             speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS,
     ):
         self.urban_grid = urban_grid
         self.max_value = max_value
+        self.accuracy = accuracy
         self.speed = speed
         self.vs = vs
         self.s_h = s_h
@@ -33,13 +34,14 @@ class AnalyticalModel:
         self.cruise_alt = 50.
         self.departure_alt = self.cruise_alt - self.s_v * 1.5
         self.t_X = self.s_h / self.speed  # Time to cross an intersection [s]
+        self.avg_duration = self.urban_grid.avg_route_length * 1000 / self.speed
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
                 self.urban_grid.n_rows != self.urban_grid.n_cols:
             raise NotImplementedError('Analytical model can only be determined for an equal grid size')
 
-        self.n_inst = np.linspace(10, self.max_value, 10)
+        self.n_inst = np.linspace(10, self.max_value, self.accuracy)
 
         self.flow_proportion = self.expand_flow_proportion()
         self.flow_rates = self.determine_flow_rates()
@@ -52,7 +54,7 @@ class AnalyticalModel:
 
         self.delays = self.delay_model(self.from_flow_rates)
 
-        self.wr_model()
+        self.mean_v_wr, self.n_inst_wr, self.mean_duration_wr = self.wr_model()
 
     def nr_model(self) -> np.ndarray:
         # Crossing flows.
@@ -95,6 +97,11 @@ class AnalyticalModel:
         return from_flows
 
     def expand_flow_proportion(self) -> pd.Series:
+        """
+        Sum of flow proportion should be 1.
+
+        :return:
+        """
         from_proportion = self.urban_grid.flow_df['flow_distribution'].groupby(['from', 'via']).sum()
         departure_proportion = self.urban_grid.flow_df['origin_distribution'].mean()
         arrival_proportion = self.urban_grid.flow_df['destination_distribution'].mean()
@@ -147,35 +154,47 @@ class AnalyticalModel:
 
         return delays
 
-    def update_flow_rates(self, new_n_inst):
-        pass
+    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        # Initiate arrays.
+        ni = pd.DataFrame({0: self.n_inst}, index=self.n_inst)
+        from_flows = [self.from_flow_rates]
+        delays = [self.from_flow_rates * 0]
+        mean_delay = pd.DataFrame().reindex_like(ni)
+        mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
+        mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
+        # Iterate.
+        num_iterations = 10
+        for i in range(1, num_iterations + 1):
+            # Calculate delays based on current flow rates.
+            delays.append(self.delay_model(from_flows[i - 1]))
+            for col in delays[i].columns:
+                delays[i][col] = delays[i][col] * self.flow_proportion.loc[delays[i].index]
+            mean_delay[i] = delays[i].sum() * ni[i - 1]
 
-    def wr_model(self) -> None:
-        # First iteration.
-        proportional_delay = self.delays.copy()
-        for col in self.delays.columns:
-            proportional_delay[col] = self.delays[col] * self.flow_proportion.loc[self.delays.index]
-        system_delay = proportional_delay.sum() * self.n_inst
+            # Mean velocity scales proportionally with delay.
+            mean_duration[i] = mean_delay[i] + self.avg_duration
+            mean_v[i] = self.speed * (self.avg_duration / mean_duration[i])
+            # Negative or increasing mean velocities signify an unstable system.
+            mean_v[i].where((mean_v[i] > 0) & (mean_v[i] <= mean_v[i - 1]), np.nan, inplace=True)
 
-        avg_duration = self.urban_grid.avg_route_length * 1000 / self.speed
-        new_duration = system_delay + avg_duration
-        mean_velocities = self.speed * (avg_duration / new_duration)
+            # Inst. amount of vehicles scales proportionally with mean_velocity.
+            ni[i] = self.n_inst * mean_v[0] / mean_v[i]
+            from_flows.append(from_flows[0] / self.n_inst * ni[i])
 
-        # Inst. amount of vehicles scales proportionally with mean_velocity.
-        n_inst = [pd.Series(self.n_inst, index=self.n_inst)]
-        delay = [self.delays]
-        mean_velocities = [pd.Series(self.speed, index=self.n_inst), mean_velocities]
-        for i in range(1, 2):
-            new_ni = self.n_inst * mean_velocities[i - 1] / mean_velocities[i]
-            n_inst.append(new_ni)
+        # Extract last column and replace first nan.
+        last_col = max(mean_v.columns)
+        mean_v_wr = mean_v[last_col].values
+        n_inst_wr = ni[last_col].values
+        mean_duration_wr = mean_duration[last_col].values
 
-            new_flow_df = self.update_flow_rates()
-            new_delays = self.delay_model(new_flow_df)
+        nanidx = np.argwhere(np.isnan(mean_v_wr))
+        if len(nanidx) > 0:
+            mean_v_wr[nanidx[0]] = 0.
+            n_inst_wr[nanidx[0]] = n_inst_wr[nanidx[0] - 1] * 5.
+            mean_duration_wr[nanidx[0]] = mean_duration_wr[nanidx[0] - 1] * 5.
 
-            # TODO put all in one big iteration loop.
-
-        return mean_velocities, n_inst
+        return mean_v_wr, n_inst_wr, mean_duration_wr
 
 
 if __name__ == '__main__':
@@ -188,6 +207,6 @@ if __name__ == '__main__':
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
-    plot_flow_rates(grid.flow_df)
+    # plot_flow_rates(grid.flow_df)
 
-    ana_model = AnalyticalModel(grid, max_value=500, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+    ana_model = AnalyticalModel(grid, max_value=300, accuracy=10, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)

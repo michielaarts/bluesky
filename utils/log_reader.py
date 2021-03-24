@@ -266,39 +266,56 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
                 data[reso][flst_key].append(result[run]['flst'][flst_key])
 
     # Plot values.
+    x = data['NR']['ni_ac']
     for reso in data.keys():
         if reso == 'NR':
             color = 'blue'
         else:
             color = 'red'
 
-        x = data[reso]['ni_ac']
         conf_axs[0].scatter(x, data[reso]['ni_conf'], color=color, label=reso)
         conf_axs[1].scatter(x, data[reso]['ni_los'], color=color, label=reso)
-        conf_axs[2].scatter(x, data[reso]['ntotal_ac'], color=color, label=reso)
+        conf_axs[2].scatter(x, data[reso]['ni_ac'], color=color, label=reso)
         conf_axs[3].scatter(x, data[reso]['ntotal_conf'], color=color, label=reso)
         conf_axs[4].scatter(x, data[reso]['ntotal_los'], color=color, label=reso)
+        conf_axs[5].scatter(x, data[reso]['ntotal_ac'], color=color, label=reso)
 
         flst_axs[0].scatter(x, data[reso]['flight_time'], color=color, label=reso)
-        flst_axs[1].scatter(x, data[reso]['dist3D'], color=color, label=reso)
+        flst_axs[1].scatter(x, data[reso]['dist2D'], color=color, label=reso)
         flst_axs[2].scatter(x, np.array(data[reso]['dist3D']) / np.array(data[reso]['flight_time']),
                             color=color, label=reso)
 
+    conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
-    conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Anal.')
+    conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    conf_axs[2].set_ylabel('Total no. of A/C [-]')
+    conf_axs[2].set_ylabel('WR Inst. no. of aircraft')
+    conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
+    conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
     conf_axs[4].set_ylabel('Total no. of los [-]')
+    conf_axs[5].set_ylabel('Total no. of A/C [-]')
+
     for ax in conf_axs:
-        ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.set_xlabel('NR Inst. no. of aircraft [-]')
+        ax.set_ylim(conf_ylim[ax])
         ax.legend()
 
+    flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
     flst_axs[0].set_ylabel('Mean flight time [s]')
-    flst_axs[1].set_ylabel('Mean 3D distance [m]')
+    flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.avg_duration,
+                     color='blue', label='NR Model')
+    flst_axs[0].plot(ana_model.n_inst, ana_model.mean_duration_wr, color='red', label='WR Model')
+    flst_axs[1].set_ylabel('Mean 2D distance [m]')
+    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.avg_route_length * 1000,
+                     color='purple', label='NR/WR Model')
     flst_axs[2].set_ylabel('Mean velocity [m/s]')
+    flst_axs[2].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.speed,
+                     color='blue', label='NR Model')
+    flst_axs[2].plot(ana_model.n_inst, ana_model.mean_v_wr, color='red', label='WR Model')
     for ax in flst_axs:
-        ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.set_xlabel('NR Inst. no. of aircraft [-]')
+        ax.set_ylim(flst_ylim[ax])
         ax.legend()
 
     return [conf_fig, flst_fig], data
@@ -342,7 +359,8 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     with open(grid_pkl, 'rb') as f:
         grid = pkl.load(f)
     # TODO extract all parameters to use as input for analytical model
-    ana_model = AnalyticalModel(grid, 500., 10., 50., 25., 20.)
+    ana_model = AnalyticalModel(grid, max_value=250., accuracy=25,
+                                speed=10., s_h=50., s_v=25., t_l=20.)
     return grid, ana_model
 
 
