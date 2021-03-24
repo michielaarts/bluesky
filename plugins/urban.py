@@ -15,8 +15,8 @@ from bluesky.tools.geo import kwikqdrdist
 
 N_ROWS = 19
 N_COLS = N_ROWS
-HORIZONTAL_SEPARATION_KM = 0.2
-VERTICAL_SEPARATION_KM = 0.2
+GRID_HEIGHT = 200  # m
+GRID_WIDTH = GRID_HEIGHT
 S_h = 100 / nm
 t_l = 60.
 
@@ -25,7 +25,7 @@ t_l = 60.
 ### function, as it is the way BlueSky recognises this file as a plugin.
 def init_plugin():
     """ Plugin initialisation function. """
-    UrbanGrid(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM, load_grid=True)
+    UrbanGrid(N_ROWS, N_COLS, GRID_WIDTH, GRID_HEIGHT, load_grid=True)
 
     # Configuration parameters
     config = {
@@ -47,8 +47,8 @@ class UrbanGrid(Entity):
 
         :param n_rows: Number of rows (should be a multiple of 4, minus 1)
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
-        :param grid_width: Distance in kilometers between two longitudinal nodes
-        :param grid_height: Distance in kilometers between two lateral nodes
+        :param grid_width: Distance in meters between two longitudinal nodes
+        :param grid_height: Distance in meters between two lateral nodes
         :param load_grid: Loads the grid as waypoints in BlueSky (default: false)
         """
         super().__init__()
@@ -59,8 +59,8 @@ class UrbanGrid(Entity):
         self.load_grid = load_grid
 
         self.name_length = max([len(str(self.n_rows)), len(str(self.n_cols))])
-        self.row_sep = self.km_to_lon(self.grid_width)
-        self.col_sep = self.km_to_lat(self.grid_height)
+        self.row_sep = self.m_to_lon(self.grid_width)
+        self.col_sep = self.m_to_lat(self.grid_height)
 
         # Variables for the nodes and edges.
         self.nodes = {}
@@ -75,6 +75,7 @@ class UrbanGrid(Entity):
         self.min_lon = None
         self.max_lat = None
         self.max_lon = None
+        self.area = (self.n_rows - 1) * self.grid_height * (self.n_cols - 1) * self.grid_width
 
         self._paths = None
         self._pathlengths = None
@@ -94,12 +95,12 @@ class UrbanGrid(Entity):
         #     self.load_city_grid()
 
     @staticmethod
-    def km_to_lat(v_sep: float) -> float:
-        return v_sep / 110.574
+    def m_to_lat(v_sep: float) -> float:
+        return v_sep / 110574.
 
     @staticmethod
-    def km_to_lon(h_sep: float, lat: float = 0) -> float:
-        return h_sep / (111.320 * np.cos(np.deg2rad(lat)))
+    def m_to_lon(h_sep: float, lat: float = 0) -> float:
+        return h_sep / (111320. * np.cos(np.deg2rad(lat)))
 
     def create_nodes(self) -> None:
         """
@@ -231,7 +232,7 @@ class UrbanGrid(Entity):
         """
         Gets the shortest path with the least amount of corners between origin and destination nodes
 
-        :return: (Path: list[node_id], Path length, Path altitude variation, Number of turns)
+        :return: (Path: list[node_id], Path length [m], Path altitude variation [m], Number of turns)
         """
         # Sanity check.
         if origin == destination:
@@ -360,7 +361,7 @@ class UrbanGrid(Entity):
         """
         Getter for the average route length through the grid.
 
-        :return: avg_route_length [km]: float
+        :return: avg_route_length [m]: float
         """
         if self._calculated_avg is None:
             print('Urban.py>>>Calculating avg. route length. This may take >1min.')

@@ -81,7 +81,7 @@ def create_routing_df(scn: dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
 def plot_flow_rates(routing_df: pd.DataFrame) -> None:
     """
-    Plots the flow rates of a routing_df.
+    Plots the flow proportion of a routing_df.
 
     :param routing_df: dataframe from create_routing_df
     :return: None
@@ -95,7 +95,7 @@ def plot_flow_rates(routing_df: pd.DataFrame) -> None:
                                    routing_df['lat'].min(), routing_df['lat'].max()])
     plt.xlabel('Longitude [deg]')
     plt.ylabel('Latitude [deg]')
-    plt.colorbar(label='Flow distribution [-]')
+    plt.colorbar(label='Flow proportion [-]')
 
 
 if __name__ == '__main__':

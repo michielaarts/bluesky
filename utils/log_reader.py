@@ -307,7 +307,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
                      color='blue', label='NR Model')
     flst_axs[0].plot(ana_model.n_inst, ana_model.mean_duration_wr, color='red', label='WR Model')
     flst_axs[1].set_ylabel('Mean 2D distance [m]')
-    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.avg_route_length * 1000,
+    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.avg_route_length,
                      color='purple', label='NR/WR Model')
     flst_axs[2].set_ylabel('Mean velocity [m/s]')
     flst_axs[2].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.speed,
@@ -358,9 +358,24 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
     with open(grid_pkl, 'rb') as f:
         grid = pkl.load(f)
-    # TODO extract all parameters to use as input for analytical model
-    ana_model = AnalyticalModel(grid, max_value=250., accuracy=25,
-                                speed=10., s_h=50., s_v=25., t_l=20.)
+
+    # Extract parameters for analytical model.
+    all_runs = [run for run in result.keys() if run != 'name']
+    all_speeds = [result[run]['scn']['speed'] for run in all_runs]
+    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
+    all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
+    all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
+    max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
+
+    if np.any([len(np.unique(var)) > 1 for var in (all_speeds, all_s_h, all_s_v, all_t_l)]):
+        raise NotImplementedError('Implement multiple analytical models in log_reader')
+    else:
+        speed = all_speeds[0]
+        s_h = all_s_h[0]
+        s_v = all_s_v[0]
+        t_l = all_t_l[0]
+    ana_model = AnalyticalModel(grid, max_value=max_val, accuracy=25,
+                                speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return grid, ana_model
 
 

@@ -34,7 +34,7 @@ class AnalyticalModel:
         self.cruise_alt = 50.
         self.departure_alt = self.cruise_alt - self.s_v * 1.5
         self.t_X = self.s_h / self.speed  # Time to cross an intersection [s]
-        self.avg_duration = self.urban_grid.avg_route_length * 1000 / self.speed
+        self.avg_duration = self.urban_grid.avg_route_length / self.speed
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
@@ -49,7 +49,6 @@ class AnalyticalModel:
         self.arrival_rate = self.departure_rate  # by definition, for a stable system.
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
-        self.area = np.power(self.urban_grid.grid_height * 1000 * (self.urban_grid.n_rows - 1), 2)
         self.c_inst_nr = self.nr_model()
 
         self.delays = self.delay_model(self.from_flow_rates)
@@ -59,14 +58,14 @@ class AnalyticalModel:
     def nr_model(self) -> np.ndarray:
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.area
+        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.urban_grid.area
 
         # Self interaction with departing traffic. Same as crossing, but in xz-plane.
         alt_to_climb = self.cruise_alt - self.departure_alt
         time_to_climb = alt_to_climb / self.vs
         n_inst_departing = self.departure_rate * time_to_climb
         n_inst_cruise = self.n_inst - n_inst_departing
-        area = alt_to_climb * np.sqrt(self.area)
+        area = alt_to_climb * np.sqrt(self.urban_grid.area)
         c_inst_nr_departing = n_inst_departing * n_inst_cruise * 2 * self.s_v * self.vs * self.t_l / area
 
         return c_inst_nr_crossing + c_inst_nr_departing
@@ -74,12 +73,12 @@ class AnalyticalModel:
     def determine_flow_rates(self) -> pd.DataFrame:
         flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
         for ni in self.n_inst:
-            passage_rate = ni * self.speed / (self.urban_grid.grid_height * 1000)
+            passage_rate = ni * self.speed / self.urban_grid.grid_height
             flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
         return flow_rates
 
     def determine_departure_rate(self) -> np.ndarray:
-        avg_route_duration = self.urban_grid.avg_route_length * 1000 / self.speed
+        avg_route_duration = self.urban_grid.avg_route_length / self.speed
         spawn_rate = self.n_inst / avg_route_duration
         return spawn_rate
 
@@ -207,6 +206,6 @@ if __name__ == '__main__':
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
-    # plot_flow_rates(grid.flow_df)
+    plot_flow_rates(grid.flow_df)
 
     ana_model = AnalyticalModel(grid, max_value=300, accuracy=10, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)

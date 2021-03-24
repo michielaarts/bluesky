@@ -35,10 +35,8 @@ class ScenarioGenerator:
         self.grid_width = grid_width
         self.grid_height = grid_height
 
-        # Initiate urban_grid
+        # Initiate urban_grid.
         self.urban_grid = UrbanGrid(self.n_rows, self.n_cols, self.grid_width, self.grid_height)
-        self.grid_area = self.n_rows * self.grid_width + self.n_cols * self.grid_height  # km2
-        self.avg_route_length = self.urban_grid.avg_route_length * 1000  # m
 
     def create_scenario(self, n_inst: np.ndarray, repetitions: int,
                         speed: np.ndarray, duration: Tuple[float, float, float],
@@ -91,7 +89,7 @@ class ScenarioGenerator:
                 print(f'Calculating scenario for N_inst={n_i}, Rep={rep}...')
 
                 # Determine departure times.
-                avg_route_duration = self.avg_route_length / V
+                avg_route_duration = self.urban_grid.avg_route_length / V
                 spawn_rate = n_i / avg_route_duration
                 spawn_interval = 1 / spawn_rate
                 n_total = round(T * spawn_rate)
@@ -193,7 +191,7 @@ class ScenarioGenerator:
                 f.write(f'# Horizontal separation: {scn["s_h"]:.1f}m\n')
                 f.write(f'# Vertical separation: {scn["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scn["t_l"]:.1f}s\n')
-                f.write(f'# Mean route length: {self.avg_route_length:.1f}m\n')
+                f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
                 f.write('# ########################################### #\n\n')
 
                 # Load urban grid
@@ -269,7 +267,7 @@ class ScenarioGenerator:
                             f'{", ".join(str(scn["s_v"]).format(".1f") for scn in all_scen)} ft\n')
                     f.write(f'# Look-ahead time: '
                             f'{", ".join(str(scn["t_l"]).format(".1f") for scn in all_scen)} s\n')
-                    f.write(f'# Mean route length: {self.avg_route_length:.1f}m\n')
+                    f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
                     f.write('# ########################################### #\n\n')
 
                     for i in range(len(all_scen)):
@@ -298,28 +296,27 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10, 50, 100, 250])
-    REPETITIONS = 2
+    N_INST = np.array([10, 25, 50, 85, 130, 185])
+    REPETITIONS = 3
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'test1'
+    PREFIX = 'validation'
 
     N_ROWS = 19
     N_COLS = N_ROWS
-    HORIZONTAL_SEPARATION_KM = 0.2  # km
-    VERTICAL_SEPARATION_KM = 0.2  # km
+    GRID_HEIGHT = 200.  # m
+    GRID_WIDTH = GRID_HEIGHT
     S_H = 50.  # m
     S_V = 25.  # ft
     T_L = 20.  # s
 
-    scen_gen = ScenarioGenerator(N_ROWS, N_COLS, HORIZONTAL_SEPARATION_KM, VERTICAL_SEPARATION_KM)
+    scen_gen = ScenarioGenerator(N_ROWS, N_COLS, GRID_WIDTH, GRID_HEIGHT)
     all_scenarios = scen_gen.create_scenario(N_INST, REPETITIONS, SPEED, DURATION, S_H, S_V, T_L)
     scen_gen.write_scenario(all_scenarios, prefix=PREFIX)
     scen_gen.save_urban_grid(prefix=PREFIX)
 
-    # Plot flow rates of first scenario for validation.
-    print('Creating flow rates plot for first scenario...')
+    # Plot flow proportion.
     plot_flow_rates(scen_gen.urban_grid.flow_df)
