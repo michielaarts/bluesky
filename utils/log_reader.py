@@ -293,8 +293,9 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
+    ana_model.fit_avg_conflict_duration(np.array(data['NR']['ni_conf']), np.array(data['NR']['ntotal_conf']))
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr,
-                     color='blue', label=rf'NR Model, $\bar{{t_c}}={ana_model.avg_conflict_duration}$s')
+                     color='blue', label=rf'NR Fitted, $\bar{{t_c}}={ana_model.avg_conflict_duration:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
     conf_axs[5].plot(ana_model.n_inst, ana_model.n_total, color='purple', label='NR/WR Model')
     conf_axs[5].set_ylabel('Total no. of A/C [-]')
@@ -384,13 +385,13 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
 
 
 if __name__ == '__main__':
-    res = create_result_dict()
-    res = process_result(res)
-    save_result(res)
+    # res = create_result_dict()
+    # res = process_result(res)
+    # save_result(res)
 
-    # res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_urban_grid_NR.pkl')
-    # with open(res_pkl, 'rb') as f:
-    #     res = pkl.load(f)
+    res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_validation_NR.pkl')
+    with open(res_pkl, 'rb') as f:
+        res = pkl.load(f)
 
     grid, analytical = load_analytical_model(res)
     figs, data_dict = plot_result(res, analytical)

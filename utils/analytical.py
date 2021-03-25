@@ -4,7 +4,8 @@ The analytical model class for an urban grid network.
 Created by Michiel Aarts, March 2021
 """
 from typing import Tuple
-
+import numpy.polynomial.polynomial as np_poly
+import scipy.optimize as opt
 import numpy as np
 import pandas as pd
 import pickle as pkl
@@ -52,8 +53,8 @@ class AnalyticalModel:
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
         self.c_inst_nr = self.nr_model()
-        self.avg_conflict_duration = 2.  # s
-        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
+        self.avg_conflict_duration = None  # s
+        self.c_total_nr = None
 
         self.delays = self.delay_model(self.from_flow_rates)
 
@@ -200,6 +201,17 @@ class AnalyticalModel:
             mean_duration_wr[nanidx[0]] = mean_duration_wr[nanidx[0] - 1] * 5.
 
         return mean_v_wr, n_inst_wr, mean_duration_wr
+
+    def fit_avg_conflict_duration(self, exp_c_inst: np.ndarray, exp_c_total: np.ndarray):
+        """ Least squares fit of the avg. conflict duration """
+        if exp_c_inst.shape != exp_c_total.shape:
+            raise ValueError('Inputs must be of same size')
+        print('Fitting average conflict duration...')
+        t_c = opt.fmin(lambda a: np.power(exp_c_inst * self.duration[1] / a - exp_c_total, 2).mean(),
+                       x0=2.)[0]
+        self.avg_conflict_duration = t_c
+        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
+        return t_c
 
 
 if __name__ == '__main__':
