@@ -52,6 +52,11 @@ class AnalyticalModel:
         self.arrival_rate = self.departure_rate  # by definition, for a stable system.
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
 
+        # n_inst departure / arrival aircraft.
+        self.n_inst_da = (self.n_inst * self.flow_proportion.where(
+            (self.flow_proportion.index.get_level_values('from') == 'departure')
+            | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
+
         self.c_inst_nr = self.nr_model()
         self.avg_conflict_duration = None  # s
         self.c_total_nr = None
@@ -161,6 +166,7 @@ class AnalyticalModel:
                 # Add to delays df.
                 delays.loc[(from_nodes[i], node)] = general_delay + stochastic_delay
 
+        delays[delays.isna()] = 0
         return delays
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -171,9 +177,10 @@ class AnalyticalModel:
         mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
         mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
+        # TODO: Discuss this, as flow proportion does change, however flow rate does not.
         proportional_delay = self.delays.copy()
         for col in proportional_delay.columns:
-            proportional_delay[col] = proportional_delay[col] * self.flow_proportion.loc[proportional_delay.index]
+            proportional_delay[col] *= self.flow_proportion.loc[proportional_delay.index]
 
         # Iterate.
         num_iterations = 10

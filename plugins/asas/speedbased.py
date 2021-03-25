@@ -227,6 +227,7 @@ class SpeedBased(ConflictResolution):
                     # Do nothing.
                     return v1 * 0, idx1
         elif np.pi / 2 <= cpa_angle <= 3 * np.pi / 2:
+            # TODO: This angle means that 'slowed down'-traffic is more often giving way?!
             # Crossing conflict.
             # Intruder must resolve, do nothing.
             return v1 * 0, idx1
@@ -258,7 +259,7 @@ class SpeedBased(ConflictResolution):
             should be followed or not, based on if the aircraft pairs passed
             their CPA.
             Note: only difference with resolution.py/resumenav is the reset
-             of the is_leading flag.
+            of the is_leading flag.
         """
         # Add new conflicts to resopairs and confpairs_all and new losses to lospairs_all.
         self.resopairs.update(conf.confpairs)

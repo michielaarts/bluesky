@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.polynomial.polynomial as np_poly
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -197,7 +198,19 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
     # Sanity check if scenario is completely cooled down.
     if conf_df['ni_ac'].iloc[-1] != 0:
         print(f"WARNING: Scenario for N_inst={ni[0]:.1f}, with CR O{'N' if cr else 'FF'} did not completely cool down!")
+        conf['cooled_down'] = False
+    else:
+        conf['cooled_down'] = True
 
+    # Sanity check 2, if flow is stabilized.
+    mean_n_inst = logging_df['ni_ac'].mean()
+    lin_coeff = np_poly.polyfit(np.linspace(0, 1, len(logging_df)), (logging_df['ni_ac'] - mean_n_inst) / mean_n_inst, 1)
+    if lin_coeff[1] > 0.1:
+        print(f"WARNING: Scenario for N_inst={ni[0]:.1f}, with CR O{'N' if cr else 'FF'} is unstable!\n"
+              f'         Linear coefficient={lin_coeff[1]:.1f}!')
+        conf['stable'] = False
+    else:
+        conf['stable'] = True
     return conf
 
 
@@ -265,6 +278,11 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
             for flst_key in result[run]['flst'].keys():
                 data[reso][flst_key].append(result[run]['flst'][flst_key])
 
+    # Transform to arrays.
+    for reso in data.keys():
+        for key in data[reso].keys():
+            data[reso][key] = np.array(data[reso][key])
+
     # Plot values.
     x = data['NR']['ni_ac']
     for reso in data.keys():
@@ -273,34 +291,55 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         else:
             color = 'red'
 
-        conf_axs[0].scatter(x, data[reso]['ni_conf'], color=color, label=reso)
-        conf_axs[1].scatter(x, data[reso]['ni_los'], color=color, label=reso)
-        conf_axs[2].scatter(x, data[reso]['ni_ac'], color=color, label=reso)
-        conf_axs[3].scatter(x, data[reso]['ntotal_conf'], color=color, label=reso)
-        conf_axs[4].scatter(x, data[reso]['ntotal_los'], color=color, label=reso)
-        conf_axs[5].scatter(x, data[reso]['ntotal_ac'], color=color, label=reso)
+        stable_filter = data[reso]['stable'] & data[reso]['cooled_down']
 
-        flst_axs[0].scatter(x, data[reso]['flight_time'], color=color, label=reso)
-        flst_axs[1].scatter(x, data[reso]['dist2D'], color=color, label=reso)
-        flst_axs[2].scatter(x, np.array(data[reso]['dist3D']) / np.array(data[reso]['flight_time']),
+        conf_axs[0].scatter(x[stable_filter], data[reso]['ni_conf'][stable_filter], color=color, label=reso)
+        conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[1].scatter(x[stable_filter], data[reso]['ni_los'][stable_filter], color=color, label=reso)
+        conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[2].scatter(x[stable_filter], data[reso]['ni_ac'][stable_filter], color=color, label=reso)
+        conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[3].scatter(x[stable_filter], data[reso]['ntotal_conf'][stable_filter], color=color, label=reso)
+        conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[4].scatter(x[stable_filter], data[reso]['ntotal_los'][stable_filter], color=color, label=reso)
+        conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[5].scatter(x[stable_filter], data[reso]['ntotal_ac'][stable_filter], color=color, label=reso)
+        conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+
+        flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter], color=color, label=reso)
+        flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter], color=color, label=reso)
+        flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        mean_v = data[reso]['dist3D'] / data[reso]['flight_time']
+        flst_axs[2].scatter(x[stable_filter], mean_v[stable_filter],
                             color=color, label=reso)
+        flst_axs[2].plot(x[~stable_filter], mean_v[~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
 
     conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    ana_model.fit_false_conflict_ratio(np.array(data['NR']['ni_conf']), np.array(data['NR']['ni_los']))
+    ana_model.fit_false_conflict_ratio(data['NR']['ni_conf'], data['NR']['ni_los'])
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr,
                      color='blue', label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
     conf_axs[2].set_ylabel('WR Inst. no. of aircraft')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
-    ana_model.fit_avg_conflict_duration(np.array(data['NR']['ni_conf']), np.array(data['NR']['ntotal_conf']))
+    ana_model.fit_avg_conflict_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr,
                      color='blue', label=rf'NR Fitted, $\bar{{t_c}}={ana_model.avg_conflict_duration:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
-    ana_model.fit_avg_los_duration(np.array(data['NR']['ni_los']), np.array(data['NR']['ntotal_los']))
+    ana_model.fit_avg_los_duration(data['NR']['ni_los'], data['NR']['ntotal_los'])
     conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr,
                      color='blue', label=rf'NR Fitted, $\bar{{t_{{los}}}}={ana_model.avg_los_duration:.1f}$s')
     conf_axs[5].plot(ana_model.n_inst, ana_model.n_total, color='purple', label='NR/WR Model')
@@ -391,13 +430,13 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
 
 
 if __name__ == '__main__':
-    # res = create_result_dict()
-    # res = process_result(res)
-    # save_result(res)
+    res = create_result_dict()
+    res = process_result(res)
+    save_result(res)
 
-    res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_validation_NR.pkl')
-    with open(res_pkl, 'rb') as f:
-        res = pkl.load(f)
+    # res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_validation_NR.pkl')
+    # with open(res_pkl, 'rb') as f:
+    #     res = pkl.load(f)
 
     grid, analytical = load_analytical_model(res)
     figs, data_dict = plot_result(res, analytical)
