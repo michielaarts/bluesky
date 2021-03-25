@@ -289,6 +289,9 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
+    ana_model.fit_false_conflict_ratio(np.array(data['NR']['ni_conf']), np.array(data['NR']['ni_los']))
+    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr,
+                     color='blue', label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
     conf_axs[2].set_ylabel('WR Inst. no. of aircraft')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
@@ -297,6 +300,9 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr,
                      color='blue', label=rf'NR Fitted, $\bar{{t_c}}={ana_model.avg_conflict_duration:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
+    ana_model.fit_avg_los_duration(np.array(data['NR']['ni_los']), np.array(data['NR']['ntotal_los']))
+    conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr,
+                     color='blue', label=rf'NR Fitted, $\bar{{t_{{los}}}}={ana_model.avg_los_duration:.1f}$s')
     conf_axs[5].plot(ana_model.n_inst, ana_model.n_total, color='purple', label='NR/WR Model')
     conf_axs[5].set_ylabel('Total no. of A/C [-]')
 

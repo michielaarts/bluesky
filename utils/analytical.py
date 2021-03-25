@@ -55,6 +55,10 @@ class AnalyticalModel:
         self.c_inst_nr = self.nr_model()
         self.avg_conflict_duration = None  # s
         self.c_total_nr = None
+        self.false_conflict_ratio = None  # -
+        self.los_inst_nr = None
+        self.avg_los_duration = None  # s
+        self.los_total_nr = None
 
         self.delays = self.delay_model(self.from_flow_rates)
 
@@ -200,7 +204,7 @@ class AnalyticalModel:
 
         return mean_v_wr, n_inst_wr, mean_duration_wr
 
-    def fit_avg_conflict_duration(self, exp_c_inst: np.ndarray, exp_c_total: np.ndarray):
+    def fit_avg_conflict_duration(self, exp_c_inst: np.ndarray, exp_c_total: np.ndarray) -> None:
         """ Least squares fit of the avg. conflict duration """
         if exp_c_inst.shape != exp_c_total.shape:
             raise ValueError('Inputs must be of same size')
@@ -209,7 +213,26 @@ class AnalyticalModel:
                        x0=2., disp=False)[0]
         self.avg_conflict_duration = t_c
         self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
-        return t_c
+
+    def fit_false_conflict_ratio(self, exp_c_inst: np.ndarray, exp_los_inst: np.ndarray) -> None:
+        """ Least squares fit of the false conflict ratio """
+        if exp_c_inst.shape != exp_los_inst.shape:
+            raise ValueError('Inputs must be of same size')
+        print('Fitting false conflict ratio...')
+        ratio = opt.fmin(lambda a: np.power(exp_c_inst * a - exp_los_inst, 2).mean(),
+                         x0=0.5, disp=False)[0]
+        self.false_conflict_ratio = 1 - ratio
+        self.los_inst_nr = self.c_inst_nr * (1 - self.false_conflict_ratio)
+
+    def fit_avg_los_duration(self, exp_los_inst: np.ndarray, exp_los_total: np.ndarray) -> None:
+        """ Least squares fit of the avg. LoS duration """
+        if exp_los_inst.shape != exp_los_total.shape:
+            raise ValueError('Inputs must be of same size')
+        print('Fitting average LoS duration...')
+        t_los = opt.fmin(lambda a: np.power(exp_los_inst * self.duration[1] / a - exp_los_total, 2).mean(),
+                         x0=2., disp=False)[0]
+        self.avg_los_duration = t_los
+        self.los_total_nr = self.los_inst_nr * self.duration[1] / self.avg_los_duration
 
 
 if __name__ == '__main__':
@@ -219,7 +242,7 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../scenario/URBAN/Data/test1_urban_grid.pkl')
+    pkl_file = Path(r'../scenario/URBAN/Data/validation_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
