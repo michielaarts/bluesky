@@ -1,0 +1,36 @@
+# ########################################### #
+# Batch file batch_validation220_WR.scn for files:
+# File: validation220_N220_R0.scn
+# File: validation220_N220_R1.scn
+# File: validation220_N220_R2.scn
+# Instantaneous number of aircraft: 220, 220, 220
+# Number of repetitions: 0
+# Speed: 10.0, 10.0, 10.0 m/s
+# Duration: (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0), (900.0, 2700.0, 900.0) s
+# Horizontal separation: 50.0, 50.0, 50.0 m
+# Vertical separation: 25.0, 25.0, 25.0 ft
+# Look-ahead time: 20.0, 20.0, 20.0 s
+# Mean route length: 3420.6m
+# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA
+# ########################################### #
+
+00:00:00.00>PCALL URBAN/validation220_N220_R0.scn REL
+00:00:00.00>RESO SPEEDBASED
+00:00:00.00>OP
+00:00:00.00>FF 6750.0
+01:52:30.00>CLOSELOG
+
+01:52:30.00>PCALL URBAN/validation220_N220_R1.scn REL
+01:52:30.00>RESO SPEEDBASED
+01:52:30.00>OP
+01:52:30.00>FF 6750.0
+03:45:00.00>CLOSELOG
+
+03:45:00.00>PCALL URBAN/validation220_N220_R2.scn REL
+03:45:00.00>RESO SPEEDBASED
+03:45:00.00>OP
+03:45:00.00>FF 6750.0
+05:37:30.00>CLOSELOG
+
+05:37:30.00>HOLD
+

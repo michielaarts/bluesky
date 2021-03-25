@@ -163,20 +163,19 @@ class AnalyticalModel:
         print('Calculating analytical WR model...')
         # Initiate arrays.
         ni = pd.DataFrame({0: self.n_inst}, index=self.n_inst)
-        from_flows = [self.from_flow_rates]
-        delays = [self.from_flow_rates * 0]
         mean_delay = pd.DataFrame().reindex_like(ni)
         mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
         mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
+        proportional_delay = self.delays.copy()
+        for col in proportional_delay.columns:
+            proportional_delay[col] = proportional_delay[col] * self.flow_proportion.loc[proportional_delay.index]
+
         # Iterate.
         num_iterations = 10
         for i in range(1, num_iterations + 1):
-            # Calculate delays based on current flow rates.
-            delays.append(self.delay_model(from_flows[i - 1]))
-            for col in delays[i].columns:
-                delays[i][col] = delays[i][col] * self.flow_proportion.loc[delays[i].index]
-            mean_delay[i] = delays[i].sum() * ni[i - 1]
+            # Calculate mean delays based on current n_inst.
+            mean_delay[i] = proportional_delay.sum() * ni[i - 1]
 
             # Mean velocity scales proportionally with delay.
             mean_duration[i] = mean_delay[i] + self.avg_duration
@@ -186,7 +185,6 @@ class AnalyticalModel:
 
             # Inst. amount of vehicles scales proportionally with mean_velocity.
             ni[i] = self.n_inst * mean_v[0] / mean_v[i]
-            from_flows.append(from_flows[0] / self.n_inst * ni[i])
 
         # Extract last column and replace first nan.
         last_col = max(mean_v.columns)
@@ -208,7 +206,7 @@ class AnalyticalModel:
             raise ValueError('Inputs must be of same size')
         print('Fitting average conflict duration...')
         t_c = opt.fmin(lambda a: np.power(exp_c_inst * self.duration[1] / a - exp_c_total, 2).mean(),
-                       x0=2.)[0]
+                       x0=2., disp=False)[0]
         self.avg_conflict_duration = t_c
         self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
         return t_c
@@ -227,4 +225,5 @@ if __name__ == '__main__':
 
     plot_flow_rates(grid.flow_df)
 
-    ana_model = AnalyticalModel(grid, max_value=300, accuracy=10, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+    ana_model = AnalyticalModel(grid, max_value=300, accuracy=10,
+                                duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
