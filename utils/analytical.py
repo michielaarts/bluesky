@@ -177,39 +177,62 @@ class AnalyticalModel:
         mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
         mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
+        max_ni_per_section = self.urban_grid.grid_height / self.s_h
+        nr_duration_per_section = pd.DataFrame(self.urban_grid.grid_height / self.speed,
+                                               index=self.delays.index, columns=self.delays.columns)
+        nr_duration_per_section = nr_duration_per_section[
+            nr_duration_per_section.index.get_level_values('from') != 'departure']
+        nr_v_per_section = self.urban_grid.grid_height / nr_duration_per_section
+        nr_separation_per_section = nr_v_per_section / self.from_flow_rates
+        nr_ni_per_section = self.urban_grid.grid_height / nr_separation_per_section
+        nr_ni = nr_ni_per_section.sum() + self.n_inst_da
+        nr_mean_v = (nr_v_per_section * nr_ni_per_section.loc[nr_v_per_section.index]).sum() / nr_ni_per_section.sum()
+
+        wr_duration_per_section = self.delays.loc[nr_duration_per_section.index] + nr_duration_per_section
+        wr_v_per_section = self.urban_grid.grid_height / wr_duration_per_section
+        wr_separation_per_section = wr_v_per_section / self.from_flow_rates
+        wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
+        wr_ni = wr_ni_per_section.sum() + self.n_inst_da
+        wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
+        wr_mean_duration = ((wr_duration_per_section * wr_ni_per_section.loc[wr_duration_per_section.index]).sum()
+                            / wr_ni_per_section.sum())
+
+        # OLD VERSION
         # TODO: Discuss this, as flow proportion does change, however flow rate does not.
-        proportional_delay = self.delays.copy()
-        for col in proportional_delay.columns:
-            proportional_delay[col] *= self.flow_proportion.loc[proportional_delay.index]
+        # proportional_delay = self.delays.copy()
+        # for col in proportional_delay.columns:
+        #     proportional_delay[col] *= self.flow_proportion.loc[proportional_delay.index]
+        #
+        # # Iterate.
+        # num_iterations = 10
+        # for i in range(1, num_iterations + 1):
+        #     # Calculate mean delays based on current n_inst.
+        #     mean_delay[i] = proportional_delay.sum() * ni[i - 1]
+        #
+        #     # Mean velocity scales proportionally with delay.
+        #     mean_duration[i] = mean_delay[i] + self.avg_duration
+        #     mean_v[i] = self.speed * (self.avg_duration / mean_duration[i])
+        #     # Negative or increasing mean velocities signify an unstable system.
+        #     mean_v[i].where((mean_v[i] > 0) & (mean_v[i] <= mean_v[i - 1]), np.nan, inplace=True)
+        #
+        #     # Inst. amount of vehicles scales proportionally with mean_velocity.
+        #     ni[i] = self.n_inst * mean_v[0] / mean_v[i]
+        #
+        # # Extract last column and replace first nan.
+        # last_col = max(mean_v.columns)
+        # mean_v_wr = mean_v[last_col].values
+        # n_inst_wr = ni[last_col].values
+        # mean_duration_wr = mean_duration[last_col].values
+        #
+        # nanidx = np.argwhere(np.isnan(mean_v_wr))
+        # if len(nanidx) > 0:
+        #     mean_v_wr[nanidx[0]] = 0.
+        #     n_inst_wr[nanidx[0]] = n_inst_wr[nanidx[0] - 1] * 5.
+        #     mean_duration_wr[nanidx[0]] = mean_duration_wr[nanidx[0] - 1] * 5.
+        #
+        # return mean_v_wr, n_inst_wr, mean_duration_wr
 
-        # Iterate.
-        num_iterations = 10
-        for i in range(1, num_iterations + 1):
-            # Calculate mean delays based on current n_inst.
-            mean_delay[i] = proportional_delay.sum() * ni[i - 1]
-
-            # Mean velocity scales proportionally with delay.
-            mean_duration[i] = mean_delay[i] + self.avg_duration
-            mean_v[i] = self.speed * (self.avg_duration / mean_duration[i])
-            # Negative or increasing mean velocities signify an unstable system.
-            mean_v[i].where((mean_v[i] > 0) & (mean_v[i] <= mean_v[i - 1]), np.nan, inplace=True)
-
-            # Inst. amount of vehicles scales proportionally with mean_velocity.
-            ni[i] = self.n_inst * mean_v[0] / mean_v[i]
-
-        # Extract last column and replace first nan.
-        last_col = max(mean_v.columns)
-        mean_v_wr = mean_v[last_col].values
-        n_inst_wr = ni[last_col].values
-        mean_duration_wr = mean_duration[last_col].values
-
-        nanidx = np.argwhere(np.isnan(mean_v_wr))
-        if len(nanidx) > 0:
-            mean_v_wr[nanidx[0]] = 0.
-            n_inst_wr[nanidx[0]] = n_inst_wr[nanidx[0] - 1] * 5.
-            mean_duration_wr[nanidx[0]] = mean_duration_wr[nanidx[0] - 1] * 5.
-
-        return mean_v_wr, n_inst_wr, mean_duration_wr
+        return wr_mean_v, wr_ni, wr_mean_duration
 
     def fit_avg_conflict_duration(self, exp_c_inst: np.ndarray, exp_c_total: np.ndarray) -> None:
         """ Least squares fit of the avg. conflict duration """
@@ -255,5 +278,5 @@ if __name__ == '__main__':
 
     plot_flow_rates(grid.flow_df)
 
-    ana_model = AnalyticalModel(grid, max_value=300, accuracy=10,
+    ana_model = AnalyticalModel(grid, max_value=300, accuracy=20,
                                 duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
