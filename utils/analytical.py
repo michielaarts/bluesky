@@ -194,8 +194,7 @@ class AnalyticalModel:
         wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
         wr_ni = wr_ni_per_section.sum() + self.n_inst_da
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
-        wr_mean_duration = ((wr_duration_per_section * wr_ni_per_section.loc[wr_duration_per_section.index]).sum()
-                            / wr_ni_per_section.sum())
+        wr_mean_duration = self.urban_grid.avg_route_length / wr_mean_v
 
         # OLD VERSION
         # TODO: Discuss this, as flow proportion does change, however flow rate does not.
