@@ -305,14 +305,14 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10, 25, 50, 85, 130, 185])
+    N_INST = np.array([10, 25, 50, 85, 130, 185, 210])
     REPETITIONS = 3
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'validation'
+    PREFIX = 'exp'
 
     N_ROWS = 19
     N_COLS = N_ROWS
