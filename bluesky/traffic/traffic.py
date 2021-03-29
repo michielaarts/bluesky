@@ -457,7 +457,7 @@ class Traffic(Entity):
         # Update vertical speed
         delta_alt = self.aporasas.alt - self.alt
         self.swaltsel = np.abs(delta_alt) > np.maximum(
-            10 * ft, np.abs(2 * np.abs(bs.sim.simdt * self.vs)))
+            1 * ft, np.abs(2 * np.abs(bs.sim.simdt * self.vs)))
         target_vs = self.swaltsel * np.sign(delta_alt) * np.abs(self.aporasas.vs)
         delta_vs = target_vs - self.vs
         # print(delta_vs / fpm)

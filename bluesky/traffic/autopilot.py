@@ -22,7 +22,7 @@ class Autopilot(Entity, replaceable=True):
         super().__init__()
 
         # Standard self.steepness for descent
-        self.steepness = 3000. * ft / (10. * nm)
+        self.steepness = 3000. * ft / (5 * nm)
 
         # From here, define object arrays
         with self.settrafarrays():
@@ -384,7 +384,7 @@ class Autopilot(Entity, replaceable=True):
 
 
         # VNAV Descent mode
-        if bs.traf.alt[idx] > toalt + 10. * ft:
+        if bs.traf.alt[idx] > toalt + 1. * ft:
 
 
             #Calculate max allowed altitude at next wp (above toalt)
@@ -422,7 +422,7 @@ class Autopilot(Entity, replaceable=True):
                       (bs.traf.gs[idx] < 0.2 * bs.traf.tas[idx]) * bs.traf.tas[idx])
 
         # VNAV climb mode: climb as soon as possible (T/C logic)
-        elif bs.traf.alt[idx] < toalt - 10. * ft:
+        elif bs.traf.alt[idx] < toalt - 1. * ft:
 
             # Altitude we want to climb to: next alt constraint in our route (could be further down the route)
             bs.traf.actwp.nextaltco[idx] = toalt   # [m]
