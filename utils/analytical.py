@@ -14,7 +14,8 @@ from pathlib import Path
 from scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm
 
-VS = 113. * fpm
+# VS depends on the steepness used in autopilot.py, adjust accordingly.
+VS = 113. * fpm * 2.
 
 
 class AnalyticalModel:
@@ -73,7 +74,7 @@ class AnalyticalModel:
         print('Calculating analytical NR model...')
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.urban_grid.area
+        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * self.s_h * vrel * self.t_l / self.urban_grid.area
 
         # Self interaction with departing traffic. Same as crossing, but in xz-plane.
         alt_to_climb = self.cruise_alt - self.departure_alt
@@ -81,7 +82,7 @@ class AnalyticalModel:
         n_inst_departing = self.departure_rate * time_to_climb
         n_inst_cruise = self.n_inst - n_inst_departing
         area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        c_inst_nr_departing = n_inst_departing * n_inst_cruise * 2 * self.s_v * self.vs * self.t_l / area
+        c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / area
 
         return c_inst_nr_crossing + c_inst_nr_departing
 
