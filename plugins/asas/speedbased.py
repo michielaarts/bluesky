@@ -43,7 +43,7 @@ class SpeedBased(ConflictResolution):
 
         with self.settrafarrays():
             # Initialize is_leading traffic array.
-            self.is_leading = np.array([], dtype=bool)
+            self.is_leading = np.array([], dtype=dict)
 
     @property
     def hdgactive(self):
@@ -53,7 +53,11 @@ class SpeedBased(ConflictResolution):
     @property
     def tasactive(self):
         """ Speed-based only, all aircraft in conflict that are not leading need tasactive True """
-        return ~self.is_leading & self.active
+        swleading = np.ones(self.active.shape, dtype=bool)
+        for idx in range(len(swleading)):
+            if self.is_leading[idx].values():
+                swleading[idx] = all(self.is_leading[idx].values())
+        return ~swleading & self.active
 
     @property
     def altactive(self):
@@ -67,7 +71,7 @@ class SpeedBased(ConflictResolution):
 
     def create(self, n=1):
         super().create(n)
-        self.is_leading[-n:] = True
+        self.is_leading[-n:] = {}
 
     def reset(self):
         super().reset()
@@ -167,6 +171,9 @@ class SpeedBased(ConflictResolution):
         dcpa_angle = np.arctan2(dcpa[0], dcpa[1])
         cpa_angle = (np.deg2rad(ownship.trk[idx1]) - dcpa_angle) % (2 * np.pi)
 
+        # Get second aircraft id
+        ac2 = intruder.id[idx2]
+
         if track_angle < self.behind_angle or track_angle > np.pi * 2 - self.behind_angle:
             # In-airway conflict.
             distance_to_los = dist - s_h
@@ -177,18 +184,20 @@ class SpeedBased(ConflictResolution):
                         # TODO NOTE: this is a 2D version, for 3D effects with climbing / descending traffic
                         #  this needs to be updated!
                         # Aircraft already descending out of area, do nothing.
+                        self.is_leading[idx1][ac2] = True
                         return v1 * 0, idx1
                     if intruder.vs[idx2] > 1E-4:
                         # If both are climbing, the lowest aircraft must resolve the conflict.
                         if ownship.alt[idx1] > intruder.alt[idx2]:
                             # Intruder must resolve, do nothing.
+                            self.is_leading[idx1][ac2] = True
                             return v1 * 0, idx1
                         # Else: ownship must resolve, no change in algorithm.
                     # Ownship is climbing / descending, must resolve conflict.
                     # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
                     # Approach such that the time to los becomes dtlookahead * behind_ratio.
                     # Due to this deceleration, the vertical conflict will result in a horizontal resolution.
-                    self.is_leading[idx1] = False
+                    self.is_leading[idx1][ac2] = False
                     vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
                     desired_tlos = conf.dtlookahead * self.behind_ratio
                     desired_vertical_vrel = vertical_distance_to_los / desired_tlos
@@ -202,6 +211,7 @@ class SpeedBased(ConflictResolution):
                 else:
                     # Intruder must resolve conflict as it is climbing / descending.
                     # Do nothing.
+                    self.is_leading[idx1][ac2] = True
                     return v1 * 0, idx1
             else:
                 # Same-level, in-airway conflict.
@@ -209,7 +219,7 @@ class SpeedBased(ConflictResolution):
                 qdr_trk_angle = (np.deg2rad(ownship.trk[idx1]) - qdr) % (2 * np.pi)
                 if qdr_trk_angle < np.pi / 2 or qdr_trk_angle > 3 * np.pi / 2:
                     # Ownship approaching from behind, needs to decelerate to intruder speed.
-                    self.is_leading[idx1] = False
+                    self.is_leading[idx1][ac2] = False
 
                     # Decelerate such that both a/c remain in conflict, but keep approaching slowly.
                     # Approach such that the time to los becomes dtlookahead * behind_ratio.
@@ -225,16 +235,18 @@ class SpeedBased(ConflictResolution):
                 else:
                     # Intruder must resolve conflict from behind.
                     # Do nothing.
+                    self.is_leading[idx1][ac2] = True
                     return v1 * 0, idx1
         elif np.pi / 2 <= cpa_angle <= 3 * np.pi / 2:
             # TODO: This angle means that 'slowed down'-traffic is more often giving way?!
             # Crossing conflict.
             # Intruder must resolve, do nothing.
+            self.is_leading[idx1][ac2] = True
             return v1 * 0, idx1
         elif cpa_angle < np.pi / 2 or cpa_angle > 3 * np.pi / 2:
             # Crossing conflict.
             # Ownship must resolve.
-            self.is_leading[idx1] = False
+            self.is_leading[idx1][ac2] = False
 
             # Calculate cosine angle.
             cos_angle = np.arccos(np.dot(v2, vrel) / (mag_v2 * mag_vrel))
@@ -318,7 +330,13 @@ class SpeedBased(ConflictResolution):
                 # If conflict is solved, remove it from the resopairs list.
                 delpairs.add(conflict)
                 # Reset is_leading flag.
-                self.is_leading[idx1] = True
+                if idx2 >= 0:
+                    self.is_leading[idx1].pop(intruder.id[idx2])
+                else:
+                    # Check which aircraft are deleted and remove those.
+                    to_pop = [acid for acid in self.is_leading[idx1].keys() if acid not in ownship.id]
+                    for acid in to_pop:
+                        self.is_leading[idx1].pop(acid)
 
         for idx, active in changeactive.items():
             # Loop a second time: this is to avoid that ASAS resolution is
