@@ -220,6 +220,10 @@ class ScenarioGenerator:
                         self.urban_grid.max_lat + 1, self.urban_grid.max_lon + 1]
                 f.write(f'{self.tim2txt(0)}>AREA {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n\n')
 
+                # Set dt of fms to 0
+                f.write('# Set dt of FMS to 0\n')
+                f.write(f'{self.tim2txt(0)}>DT FMS 0.001\n\n')
+
                 # Create aircraft.
                 f.write('# Create aircraft.\n')
                 max_id = scn['scenario'][-1]['id']
