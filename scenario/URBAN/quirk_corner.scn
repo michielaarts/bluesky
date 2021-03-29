@@ -1,0 +1,29 @@
+# ########################################### #
+# Scenario: quirk_waypoints.scn
+# Shows a quirk in altitude at both climb (40 -> 50 ft) and descend (10 -> 0 ft).
+# Shows a quirk in heading just after a waypoint.
+# Number of aircraft: 1
+# Speed: 10.0m/s
+# ########################################### #
+
+# Load the city grid
+00:00:00.00>DEFWPT CG0000 0.0 0.0
+00:00:00.00>DEFWPT CG0001 0.0 0.0018087434659142293
+00:00:00.00>DEFWPT CG0002 0.0018087434659142293 0.0018087434659142293
+00:00:00.00>DEFWPT CG0003 0.0 0.005426230397742688
+
+# Pan screen to center
+00:00:00.00>PAN 0 0
+00:00:00.00>ZOOM 200
+
+# Create aircraft.
+# Creating aircraft no. 0
+00:00:01.00>CRE UAV000 M600 CG0000 90.0 12.5 19.438461717893492
+00:00:01.00>ORIG UAV000 CG0000
+00:00:01.00>DEST UAV000 CG0003
+00:00:01.00>ADDWPT UAV000 CG0001 50 19.438461717893492
+00:00:01.00>ADDWPT UAV000 CG0002 50 19.438461717893492
+00:00:01.00>LNAV UAV000 ON
+00:00:01.00>VNAV UAV000 ON
+00:00:01.00>POS UAV000
+00:00:01.00>TRAILS ON
