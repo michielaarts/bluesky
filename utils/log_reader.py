@@ -248,7 +248,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
     all_speeds = [result[run]['scn']['speed'] for run in all_runs]
-    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
+    all_s_h = [50 * np.sqrt(2) for _ in all_runs]  # [result[run]['scn']['s_h'] for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
     max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
@@ -358,7 +358,8 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='lightblue', linestyle='--',
+    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
+    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
                      label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.avg_los_duration_nr:.1f}$s')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
                      label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.avg_los_duration_wr:.1f}$s')

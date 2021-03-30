@@ -15,7 +15,7 @@ from scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm
 
 # VS depends on the steepness used in autopilot.py, adjust accordingly.
-VS = 113. * fpm * 2.
+VS = 194. * fpm
 
 
 class AnalyticalModel:
@@ -59,7 +59,7 @@ class AnalyticalModel:
             | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
 
         # NR Model
-        self.c_inst_nr = self.nr_model()
+        self.c_inst_nr, self.los_inst_nr = self.nr_model()
 
         # Fitted variables
         self.c_inst_wr_fitted = None
@@ -73,7 +73,7 @@ class AnalyticalModel:
         self.los_total_wr = None
         self.avg_los_duration_nr = None  # s
         self.avg_los_duration_wr = None  # s
-        self.los_inst_nr = None
+        self.los_inst_nr_fitted = None
         self.los_inst_wr = None
 
         # WR Model
@@ -81,11 +81,13 @@ class AnalyticalModel:
 
         self.mean_v_wr, self.n_inst_wr, self.mean_duration_wr = self.wr_model()
 
-    def nr_model(self) -> np.ndarray:
+    def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
         print('Calculating analytical NR model...')
+        # Conflicts --------
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.urban_grid.area
+        c_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * self.s_h * vrel * self.t_l
+                              / self.urban_grid.area)
 
         # Self interaction with departing traffic. Same as crossing, but in xz-plane.
         alt_to_climb = self.cruise_alt - self.departure_alt
@@ -93,9 +95,25 @@ class AnalyticalModel:
         n_inst_departing = self.departure_rate * time_to_climb
         n_inst_cruise = self.n_inst - n_inst_departing
         area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        c_inst_nr_departing = n_inst_departing * n_inst_cruise * 2 * self.s_v * self.vs * self.t_l / area
+        c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / area
 
-        return c_inst_nr_crossing + c_inst_nr_departing
+        c_inst_nr = c_inst_nr_crossing + c_inst_nr_departing
+
+        # LoS ---------
+        los_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * np.pi * np.power(self.s_h / 2, 2)
+                                / self.urban_grid.area)
+
+        # Self interaction with departing traffic. Same as crossing, but in xz-plane.
+        alt_to_climb = self.cruise_alt - self.departure_alt
+        time_to_climb = alt_to_climb / self.vs
+        n_inst_departing = self.departure_rate * time_to_climb
+        n_inst_cruise = self.n_inst - n_inst_departing
+        area = alt_to_climb * np.sqrt(self.urban_grid.area)
+        los_inst_nr_departing = n_inst_departing * n_inst_cruise * np.pi * np.power(self.s_v / 2, 2) / area
+
+        los_inst_nr = los_inst_nr_crossing + los_inst_nr_departing
+
+        return c_inst_nr, los_inst_nr
 
     def determine_flow_rates(self) -> pd.DataFrame:
         flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
@@ -283,7 +301,7 @@ class AnalyticalModel:
         self.c_total_wr = self.c_inst_wr_fitted * self.duration[1] / self.avg_conflict_duration_wr
         self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
         self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
-        self.los_inst_nr = self.los_total_nr * self.avg_los_duration_nr / self.duration[1]
+        self.los_inst_nr_fitted = self.los_total_nr * self.avg_los_duration_nr / self.duration[1]
         self.los_inst_wr = self.los_total_wr * self.avg_los_duration_wr / self.duration[1]
 
 
