@@ -239,6 +239,33 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         return flst, all_ac
 
 
+def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[UrbanGrid, AnalyticalModel]:
+    prefix = re.findall('batch_(.*)_NR', result['name'])[0]
+    grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
+    with open(grid_pkl, 'rb') as f:
+        urban_grid = pkl.load(f)
+
+    # Extract parameters for analytical model.
+    all_runs = [run for run in result.keys() if run != 'name']
+    all_speeds = [result[run]['scn']['speed'] for run in all_runs]
+    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
+    all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
+    all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
+    max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
+    duration = result[all_runs[0]]['scn']['duration']
+
+    if np.any([len(np.unique(var)) > 1 for var in (all_speeds, all_s_h, all_s_v, all_t_l)]):
+        raise NotImplementedError('Implement multiple analytical models in log_reader')
+    else:
+        speed = all_speeds[0]
+        s_h = all_s_h[0]
+        s_v = all_s_v[0]
+        t_l = all_t_l[0]
+    ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
+                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+    return urban_grid, ana_model
+
+
 def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figure], dict]:
     """
     Plots the results.
@@ -376,7 +403,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     return [conf_fig, flst_fig], data
 
 
-def save_plots(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
+def save_figures(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
     """
     Saves the figures
 
@@ -385,6 +412,7 @@ def save_plots(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_
     :param output_dir:
     :return: None
     """
+    print('Saving figures...')
     for fig in fig_list:
         fig.savefig(output_dir / 'RESULT' / f'{name}_{fig.number}.svg', bbox_inches='tight')
 
@@ -408,33 +436,6 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
     return df
 
 
-def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[UrbanGrid, AnalyticalModel]:
-    prefix = re.findall('batch_(.*)_NR', result['name'])[0]
-    grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
-    with open(grid_pkl, 'rb') as f:
-        urban_grid = pkl.load(f)
-
-    # Extract parameters for analytical model.
-    all_runs = [run for run in result.keys() if run != 'name']
-    all_speeds = [result[run]['scn']['speed'] for run in all_runs]
-    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
-    all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
-    all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
-    max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
-    duration = result[all_runs[0]]['scn']['duration']
-
-    if np.any([len(np.unique(var)) > 1 for var in (all_speeds, all_s_h, all_s_v, all_t_l)]):
-        raise NotImplementedError('Implement multiple analytical models in log_reader')
-    else:
-        speed = all_speeds[0]
-        s_h = all_s_h[0]
-        s_v = all_s_v[0]
-        t_l = all_t_l[0]
-    ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
-                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
-    return urban_grid, ana_model
-
-
 if __name__ == '__main__':
     use_pkl = True
 
@@ -449,5 +450,5 @@ if __name__ == '__main__':
 
     grid, analytical = load_analytical_model(res)
     figs, data_dict = plot_result(res, analytical)
-    save_plots(figs, res['name'])
+    save_figures(figs, res['name'])
     data_df = save_data(data_dict, res['name'])
