@@ -58,14 +58,25 @@ class AnalyticalModel:
             (self.flow_proportion.index.get_level_values('from') == 'departure')
             | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
 
+        # NR Model
         self.c_inst_nr = self.nr_model()
-        self.avg_conflict_duration = None  # s
-        self.c_total_nr = None
-        self.false_conflict_ratio = None  # -
-        self.los_inst_nr = None
-        self.avg_los_duration = None  # s
-        self.los_total_nr = None
 
+        # Fitted variables
+        self.c_inst_wr_fitted = None
+        self.avg_conflict_duration_nr = None  # s
+        self.avg_conflict_duration_wr = None  # s
+        self.c_total_nr = None
+        self.c_total_wr = None
+        self.false_conflict_ratio = None
+        self.resolve_ratio = None
+        self.los_total_nr = None
+        self.los_total_wr = None
+        self.avg_los_duration_nr = None  # s
+        self.avg_los_duration_wr = None  # s
+        self.los_inst_nr = None
+        self.los_inst_wr = None
+
+        # WR Model
         self.delays = self.delay_model(self.from_flow_rates)
 
         self.mean_v_wr, self.n_inst_wr, self.mean_duration_wr = self.wr_model()
@@ -74,7 +85,7 @@ class AnalyticalModel:
         print('Calculating analytical NR model...')
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * self.s_h * vrel * self.t_l / self.urban_grid.area
+        c_inst_nr_crossing = 4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l / self.urban_grid.area
 
         # Self interaction with departing traffic. Same as crossing, but in xz-plane.
         alt_to_climb = self.cruise_alt - self.departure_alt
@@ -82,7 +93,7 @@ class AnalyticalModel:
         n_inst_departing = self.departure_rate * time_to_climb
         n_inst_cruise = self.n_inst - n_inst_departing
         area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / area
+        c_inst_nr_departing = n_inst_departing * n_inst_cruise * 2 * self.s_v * self.vs * self.t_l / area
 
         return c_inst_nr_crossing + c_inst_nr_departing
 
@@ -234,35 +245,46 @@ class AnalyticalModel:
 
         return wr_mean_v, wr_ni, wr_mean_duration
 
-    def fit_avg_conflict_duration(self, exp_c_inst: np.ndarray, exp_c_total: np.ndarray) -> None:
-        """ Least squares fit of the avg. conflict duration """
-        if exp_c_inst.shape != exp_c_total.shape:
+    def _fit_avg_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:
+        """ Least squares fit of the avg. conflict or los duration """
+        if exp_inst.shape != exp_total.shape:
             raise ValueError('Inputs must be of same size')
-        print('Fitting average conflict duration...')
-        t_c = opt.fmin(lambda a: np.power(exp_c_inst * self.duration[1] / a - exp_c_total, 2).mean(),
-                       x0=2., disp=False)[0]
-        self.avg_conflict_duration = t_c
-        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration
-
-    def fit_false_conflict_ratio(self, exp_c_inst: np.ndarray, exp_los_inst: np.ndarray) -> None:
-        """ Least squares fit of the false conflict ratio """
-        if exp_c_inst.shape != exp_los_inst.shape:
-            raise ValueError('Inputs must be of same size')
-        print('Fitting false conflict ratio...')
-        ratio = opt.fmin(lambda a: np.power(exp_c_inst * a - exp_los_inst, 2).mean(),
-                         x0=0.5, disp=False)[0]
-        self.false_conflict_ratio = 1 - ratio
-        self.los_inst_nr = self.c_inst_nr * (1 - self.false_conflict_ratio)
-
-    def fit_avg_los_duration(self, exp_los_inst: np.ndarray, exp_los_total: np.ndarray) -> None:
-        """ Least squares fit of the avg. LoS duration """
-        if exp_los_inst.shape != exp_los_total.shape:
-            raise ValueError('Inputs must be of same size')
-        print('Fitting average LoS duration...')
-        t_los = opt.fmin(lambda a: np.power(exp_los_inst * self.duration[1] / a - exp_los_total, 2).mean(),
+        t_avg = opt.fmin(lambda a: np.power(exp_inst * self.duration[1] / a - exp_total, 2).mean(),
                          x0=2., disp=False)[0]
-        self.avg_los_duration = t_los
-        self.los_total_nr = self.los_inst_nr * self.duration[1] / self.avg_los_duration
+        return t_avg
+
+    @staticmethod
+    def _fit_conflict_los_ratio(exp_c_total: np.ndarray, exp_los_total: np.ndarray) -> float:
+        """ Least squares fit of the false conflict ratio """
+        if exp_c_total.shape != exp_los_total.shape:
+            raise ValueError('Inputs must be of same size')
+        ratio = opt.fmin(lambda a: np.power(exp_c_total * a - exp_los_total, 2).mean(),
+                         x0=0.5, disp=False)[0]
+        return 1 - ratio
+
+    def _fit_c_inst_wr(self, exp_n_inst_nr: np.ndarray, exp_c_inst_wr: np.ndarray) -> np.ndarray:
+        """ Least squares, second degree polynomial fit of the instantaneous number of conflicts with resolution """
+        res = opt.fmin(lambda a: np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2).mean(),
+                       x0=1, disp=False)[0]
+        return res * np.power(self.n_inst, 2)
+
+    def fit_derivatives(self, data: dict):
+        print('Fitting derivatives...')
+        self.c_inst_wr_fitted = self._fit_c_inst_wr(data['NR']['ni_ac'], data['WR']['ni_conf'])
+        self.avg_conflict_duration_nr = self._fit_avg_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
+        self.avg_conflict_duration_wr = self._fit_avg_duration(data['WR']['ni_conf'], data['WR']['ntotal_conf'])
+        self.avg_los_duration_nr = self._fit_avg_duration(data['NR']['ni_los'], data['NR']['ntotal_los'])
+        self.avg_los_duration_wr = self._fit_avg_duration(data['WR']['ni_los'], data['WR']['ntotal_los'])
+        self.false_conflict_ratio = self._fit_conflict_los_ratio(data['NR']['ntotal_conf'],
+                                                                 data['NR']['ntotal_los'])
+        self.resolve_ratio = self._fit_conflict_los_ratio(data['WR']['ntotal_conf'], data['WR']['ntotal_los'])
+
+        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration_nr
+        self.c_total_wr = self.c_inst_wr_fitted * self.duration[1] / self.avg_conflict_duration_wr
+        self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
+        self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
+        self.los_inst_nr = self.los_total_nr * self.avg_los_duration_nr / self.duration[1]
+        self.los_inst_wr = self.los_total_wr * self.avg_los_duration_wr / self.duration[1]
 
 
 if __name__ == '__main__':
