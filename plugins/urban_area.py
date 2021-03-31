@@ -306,6 +306,8 @@ class Area(Entity):
         A new area / experiment can be defined afterwards.
         This helps if QUIT does not let the logs finish properly.
         """
+        if traf.ntraf > 0:
+            print(f'Warning! {self.ntraf} aircraft remaining while closing the logs!')
         datalog.reset()
         self.reset()
         return True, 'Logs are closed\nExperiment area set to None'
