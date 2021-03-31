@@ -173,7 +173,7 @@ class ScenarioGenerator:
 
             # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
             cruise_alt = 50.  # ft
-            departure_alt = cruise_alt - scn['s_v'] * 1.5  # ft
+            departure_alt = 0.  # ft
 
             # Save data to .pkl file.
             pkl_file = f'{prefix}_N{n_inst:.0f}_R{rep:.0f}.pkl'
@@ -287,7 +287,7 @@ class ScenarioGenerator:
                         f.write(f'{self.tim2txt(i * t)}>OP\n')
                         f.write(f'{self.tim2txt(i * t)}>FF {t}\n')
                         f.write(f'{self.tim2txt((i + 1) * t)}>CLOSELOG\n\n')
-                    f.write(f'{self.tim2txt((i + 1) * t)}>HOLD\n\n')
+                    f.write(f'{self.tim2txt((i + 1) * t + 10)}>QUIT\n\n')
 
                 print(f'Written {scn_path / scn_file}')
 
@@ -305,16 +305,16 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10, 25, 50, 85, 130, 185, 210])
+    N_INST = np.array([10, 20, 30, 40, 50])
     REPETITIONS = 3
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'exp'
+    PREFIX = 'medium_size'
 
-    N_ROWS = 19
+    N_ROWS = 7
     N_COLS = N_ROWS
     GRID_HEIGHT = 200.  # m
     GRID_WIDTH = GRID_HEIGHT

@@ -195,9 +195,9 @@ class Area(Entity):
             [confpairs_new.remove(pair) for pair in ignore_confpair if pair in confpairs_new]
             [lospairs_new.remove(pair) for pair in ignore_lospair if pair in lospairs_new]
 
-            if lospairs_new:
-                print('LoS found:', lospairs_new)
-                print()
+            # if lospairs_new:
+            #     print('LoS found:', lospairs_new)
+            #     print()
 
             self.ntotal_conf += len(confpairs_new)
             self.ntotal_los += len(lospairs_new)
