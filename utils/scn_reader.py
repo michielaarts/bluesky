@@ -86,13 +86,16 @@ def plot_flow_rates(routing_df: pd.DataFrame) -> None:
     :param routing_df: dataframe from create_routing_df
     :return: None
     """
-    flow_rates = (routing_df.copy()
+    flow_rates = (routing_df
                   .groupby('via').agg({'flow_distribution': 'sum', 'lat': 'mean', 'lon': 'mean'})
                   .pivot('lat', 'lon', 'flow_distribution'))
+    departure_rates = (routing_df
+                       .groupby('via').agg({'origin_distribution': 'sum', 'lat': 'mean', 'lon': 'mean'})
+                       .pivot('lat', 'lon', 'origin_distribution'))
 
     plt.figure()
-    plt.imshow(flow_rates, extent=[routing_df['lon'].min(), routing_df['lon'].max(),
-                                   routing_df['lat'].min(), routing_df['lat'].max()])
+    plt.imshow(flow_rates + departure_rates, extent=[routing_df['lon'].min(), routing_df['lon'].max(),
+                                                     routing_df['lat'].min(), routing_df['lat'].max()])
     plt.xlabel('Longitude [deg]')
     plt.ylabel('Latitude [deg]')
     plt.colorbar(label='Flow proportion [-]')
