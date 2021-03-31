@@ -165,10 +165,14 @@ class Area(Entity):
             self.distance2D += dt * traf.gs
             self.distance3D += dt * total_spd
 
-            # Find out which aircraft are currently inside the experiment area.
+            # Check whether all aircraft are currently inside the experiment area.
             inside_exp = areafilter.checkInside(self.exp_area, traf.lat, traf.lon, traf.alt)
             if not np.all(inside_exp):
                 raise RuntimeError('An aircraft escaped the experiment area!')
+
+            # Check for arrived flights.
+            # Upon reaching destination, autopilot switches off the LNAV.
+            arrived = ~traf.swlnav
 
             # Count new conflicts and losses of separation.
             # Store statistics for all new conflict pairs, i.e.:
@@ -177,10 +181,29 @@ class Area(Entity):
             confpairs_new = list(traf.cd.confpairs_unique - self.prevconfpairs)
             lospairs_new = list(traf.cd.lospairs_unique - self.prevlospairs)
 
+            # Ignore conflicts and losses for descending or arrived aircraft.
+            ignore_confpair = set()
+            ignore_lospair = set()
+            for pair in traf.cd.confpairs_unique:
+                for ac in pair:
+                    if traf.vs[traf.id.index(ac)] < -1E-4 or arrived[traf.id.index(ac)]:
+                        ignore_confpair.add(pair)
+            for pair in traf.cd.lospairs_unique:
+                for ac in pair:
+                    if traf.vs[traf.id.index(ac)] < -1E-4 or arrived[traf.id.index(ac)]:
+                        ignore_lospair.add(pair)
+            [confpairs_new.remove(pair) for pair in ignore_confpair if pair in confpairs_new]
+            [lospairs_new.remove(pair) for pair in ignore_lospair if pair in lospairs_new]
+
+            if lospairs_new:
+                print('LoS found:', lospairs_new)
+                print()
+
             self.ntotal_conf += len(confpairs_new)
             self.ntotal_los += len(lospairs_new)
 
-            self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique), len(traf.cd.lospairs_unique),
+            self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique) - len(ignore_confpair),
+                              len(traf.cd.lospairs_unique) - len(ignore_lospair),
                               self.ntotal_ac, self.ntotal_conf, self.ntotal_los, bool(traf.cr.do_cr))
 
             # Log distance values upon entry of experiment area (includes spawning aircraft).
@@ -194,12 +217,10 @@ class Area(Entity):
             self.inside_exp = inside_exp
             self.prevconfpairs = set(traf.cd.confpairs_unique)
             self.prevlospairs = set(traf.cd.lospairs_unique)
+            [self.prevconfpairs.remove(pair) for pair in ignore_confpair]
+            [self.prevlospairs.remove(pair) for pair in ignore_lospair]
 
-            # Log flight statistics when reaching destination.
-            # Upon reaching destination, autopilot switches off the LNAV.
-            arrived = ~traf.swlnav
-
-            # Log and delete all arrived aircraft.
+            # Log flight statistics when reaching destination and delete aircraft.
             del_idx = np.flatnonzero(arrived)
             self.flst_log.log(
                 np.array(traf.id)[del_idx],
