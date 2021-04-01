@@ -34,9 +34,9 @@ class AnalyticalModel:
         self.s_v = s_v
         self.t_l = t_l
 
-        self.cruise_alt = 50.
-        self.departure_alt = self.cruise_alt - self.s_v * 1.5
-        self.t_X = self.s_h / self.speed  # Time to cross an intersection [s]
+        self.cruise_alt = 50.  # ft
+        self.departure_alt = 0.  # ft
+        self.t_X = self.s_h * 1.05 / self.speed  # Time to cross an intersection [s]
         self.avg_duration = self.urban_grid.avg_route_length / self.speed
 
         # Sanity check.
@@ -207,7 +207,8 @@ class AnalyticalModel:
         mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
         mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
-        max_ni_per_section = self.urban_grid.grid_height / self.s_h
+        # Calculate nr case (as check).
+        max_ni_per_section = self.urban_grid.grid_height / (self.s_h * 1.05)
         nr_duration_per_section = pd.DataFrame(self.urban_grid.grid_height / self.speed,
                                                index=self.delays.index, columns=self.delays.columns)
         nr_duration_per_section = nr_duration_per_section[
@@ -218,6 +219,7 @@ class AnalyticalModel:
         nr_ni = nr_ni_per_section.sum() + self.n_inst_da
         nr_mean_v = (nr_v_per_section * nr_ni_per_section.loc[nr_v_per_section.index]).sum() / nr_ni_per_section.sum()
 
+        # Calculate wr case.
         wr_duration_per_section = self.delays.loc[nr_duration_per_section.index] + nr_duration_per_section
         wr_v_per_section = self.urban_grid.grid_height / wr_duration_per_section
         wr_separation_per_section = wr_v_per_section / self.from_flow_rates
@@ -226,40 +228,11 @@ class AnalyticalModel:
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
         wr_mean_duration = self.urban_grid.avg_route_length / wr_mean_v
 
-        # OLD VERSION
-        # TODO: Discuss this, as flow proportion does change, however flow rate does not.
-        # proportional_delay = self.delays.copy()
-        # for col in proportional_delay.columns:
-        #     proportional_delay[col] *= self.flow_proportion.loc[proportional_delay.index]
-        #
-        # # Iterate.
-        # num_iterations = 10
-        # for i in range(1, num_iterations + 1):
-        #     # Calculate mean delays based on current n_inst.
-        #     mean_delay[i] = proportional_delay.sum() * ni[i - 1]
-        #
-        #     # Mean velocity scales proportionally with delay.
-        #     mean_duration[i] = mean_delay[i] + self.avg_duration
-        #     mean_v[i] = self.speed * (self.avg_duration / mean_duration[i])
-        #     # Negative or increasing mean velocities signify an unstable system.
-        #     mean_v[i].where((mean_v[i] > 0) & (mean_v[i] <= mean_v[i - 1]), np.nan, inplace=True)
-        #
-        #     # Inst. amount of vehicles scales proportionally with mean_velocity.
-        #     ni[i] = self.n_inst * mean_v[0] / mean_v[i]
-        #
-        # # Extract last column and replace first nan.
-        # last_col = max(mean_v.columns)
-        # mean_v_wr = mean_v[last_col].values
-        # n_inst_wr = ni[last_col].values
-        # mean_duration_wr = mean_duration[last_col].values
-        #
-        # nanidx = np.argwhere(np.isnan(mean_v_wr))
-        # if len(nanidx) > 0:
-        #     mean_v_wr[nanidx[0]] = 0.
-        #     n_inst_wr[nanidx[0]] = n_inst_wr[nanidx[0] - 1] * 5.
-        #     mean_duration_wr[nanidx[0]] = mean_duration_wr[nanidx[0] - 1] * 5.
-        #
-        # return mean_v_wr, n_inst_wr, mean_duration_wr
+        # Filter unstable values.
+        unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
+        wr_mean_v[unstable_filter] = 0
+        wr_ni[unstable_filter] = 0
+        wr_mean_duration[unstable_filter] = 0
 
         return wr_mean_v, wr_ni, wr_mean_duration
 
@@ -267,7 +240,7 @@ class AnalyticalModel:
         """ Least squares fit of the avg. conflict or los duration """
         if exp_inst.shape != exp_total.shape:
             raise ValueError('Inputs must be of same size')
-        t_avg = opt.fmin(lambda a: np.power(exp_inst * self.duration[1] / a - exp_total, 2).mean(),
+        t_avg = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
                          x0=2., disp=False)[0]
         return t_avg
 
@@ -276,18 +249,24 @@ class AnalyticalModel:
         """ Least squares fit of the false conflict ratio """
         if exp_c_total.shape != exp_los_total.shape:
             raise ValueError('Inputs must be of same size')
-        ratio = opt.fmin(lambda a: np.power(exp_c_total * a - exp_los_total, 2).mean(),
+        ratio = opt.fmin(lambda a: np.nanmean(np.power(exp_c_total * a - exp_los_total, 2)),
                          x0=0.5, disp=False)[0]
         return 1 - ratio
 
     def _fit_c_inst_wr(self, exp_n_inst_nr: np.ndarray, exp_c_inst_wr: np.ndarray) -> np.ndarray:
         """ Least squares, second degree polynomial fit of the instantaneous number of conflicts with resolution """
-        res = opt.fmin(lambda a: np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2).mean(),
+        res = opt.fmin(lambda a: np.nanmean(np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2)),
                        x0=1, disp=False)[0]
         return res * np.power(self.n_inst, 2)
 
     def fit_derivatives(self, data: dict):
         print('Fitting derivatives...')
+        # Set all unstable data to nan
+        for reso in data.keys():
+            for key in data[reso].keys():
+                if key != 'stable_filter':
+                    data[reso][key] = np.where(data[reso]['stable_filter'], data[reso][key], np.nan)
+
         self.c_inst_wr_fitted = self._fit_c_inst_wr(data['NR']['ni_ac'], data['WR']['ni_conf'])
         self.avg_conflict_duration_nr = self._fit_avg_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
         self.avg_conflict_duration_wr = self._fit_avg_duration(data['WR']['ni_conf'], data['WR']['ntotal_conf'])

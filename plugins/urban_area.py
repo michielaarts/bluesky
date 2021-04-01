@@ -7,7 +7,7 @@ logged with the FLSTLOG logger, while the CONFLOG logger logs the conflicts.
 Created by Michiel Aarts, March 2021
 """
 import numpy as np
-from bluesky import traf, sim
+from bluesky import traf, sim, stack
 from bluesky.tools import datalog, areafilter
 from bluesky.core import Entity, timed_function
 from bluesky.tools.aero import ft, fpm
@@ -37,11 +37,12 @@ flst_header = \
     'Pilot ALT [ft], ' + \
     'Pilot SPD (TAS) [m/s], ' + \
     'Pilot HDG [deg], ' + \
-    'Pilot VS [fpm]' + \
-    'CR [bool]' + '\n'
+    'Pilot VS [fpm], ' + \
+    'CR [bool], ' + \
+    'Stable [bool]' + '\n'
 
 flst_vars = 'arrival_time, callsign, departure_time, flight_time, dist2D, dist3D, work_done, lat, lon, alt, tas,' \
-           'vs, hdg, asas, apalt, aptas, aphdg, apvs, cr\n'
+           'vs, hdg, asas, apalt, aptas, aphdg, apvs, cr, stable\n'
 
 conf_header = \
     '#######################################################\n' + \
@@ -56,9 +57,10 @@ conf_header = \
     'Total number of aircraft [-], ' + \
     'Total number of conflicts [-], ' + \
     'Total number of losses of separation [-], ' + \
-    'CR [bool]\n'
+    'CR [bool], ' + \
+    'Stable [bool] ' + '\n'
 
-conf_vars = 't, ni_ac, ni_conf, ni_los, ntotal_ac, ntotal_conf, ntotal_los, cr\n'
+conf_vars = 't, ni_ac, ni_conf, ni_los, ntotal_ac, ntotal_conf, ntotal_los, cr, stable\n'
 
 # Global data
 area = None
@@ -118,6 +120,7 @@ class Area(Entity):
         self.ntotal_los = 0
         self.ntotal_ac = 0
         self.log_prefix = ''
+        self.stable = True
 
         self.flst_log = datalog.crelog('FLSTLOG', None, flst_header)
         self.conf_log = datalog.crelog('CONFLOG', None, conf_header)
@@ -143,6 +146,7 @@ class Area(Entity):
         self.ntotal_los = 0
         self.ntotal_ac = 0
         self.log_prefix = ''
+        self.stable = True
 
     def create(self, n=1):
         """ Create is called when new aircraft are created. """
@@ -170,6 +174,15 @@ class Area(Entity):
             if not np.all(inside_exp):
                 raise RuntimeError('An aircraft escaped the experiment area!')
 
+            # Check if mean speed in scenario below threshold.
+            if self.stable and np.mean(traf.gs) < 2.:
+                # Turn reso OFF and unset stable flag, to let this scenario be able to finish.
+                print(f'WARNING! Simulation stuck.\n'
+                      f'Mean speed of simulation reached {np.mean(traf.gs):.2f}m/s\n'
+                      f'Setting stable flag to False and Turning RESO OFF for the rest of this scenario')
+                stack.stack('RESO OFF')
+                self.stable = False
+
             # Check for arrived flights.
             # Upon reaching destination, autopilot switches off the LNAV.
             arrived = ~traf.swlnav
@@ -186,12 +199,22 @@ class Area(Entity):
             ignore_lospair = set()
             for pair in traf.cd.confpairs_unique:
                 for ac in pair:
-                    if traf.vs[traf.id.index(ac)] < -1E-4 or arrived[traf.id.index(ac)]:
+                    try:
+                        idx = traf.id.index(ac)
+                        if traf.vs[idx] < -1E-4 or arrived[idx]:
+                            ignore_confpair.add(pair)
+                    except ValueError:
+                        # Aircraft is already deleted.
                         ignore_confpair.add(pair)
             for pair in traf.cd.lospairs_unique:
                 for ac in pair:
-                    if traf.vs[traf.id.index(ac)] < -1E-4 or arrived[traf.id.index(ac)]:
-                        ignore_lospair.add(pair)
+                    try:
+                        idx = traf.id.index(ac)
+                        if traf.vs[idx] < -1E-4 or arrived[idx]:
+                            ignore_confpair.add(pair)
+                    except ValueError:
+                        # Aircraft is already deleted.
+                        ignore_confpair.add(pair)
             [confpairs_new.remove(pair) for pair in ignore_confpair if pair in confpairs_new]
             [lospairs_new.remove(pair) for pair in ignore_lospair if pair in lospairs_new]
 
@@ -204,7 +227,8 @@ class Area(Entity):
 
             self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique) - len(ignore_confpair),
                               len(traf.cd.lospairs_unique) - len(ignore_lospair),
-                              self.ntotal_ac, self.ntotal_conf, self.ntotal_los, bool(traf.cr.do_cr))
+                              self.ntotal_ac, self.ntotal_conf, self.ntotal_los,
+                              bool(traf.cr.do_cr), self.stable)
 
             # Log distance values upon entry of experiment area (includes spawning aircraft).
             newentries = np.logical_not(self.inside_exp) * inside_exp
@@ -240,7 +264,8 @@ class Area(Entity):
                 traf.aporasas.tas[del_idx],
                 traf.aporasas.hdg[del_idx],
                 traf.aporasas.vs[del_idx] / fpm,
-                traf.cr.do_cr
+                traf.cr.do_cr,
+                self.stable
             )
             traf.delete(del_idx)
 

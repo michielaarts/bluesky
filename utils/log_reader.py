@@ -1,5 +1,4 @@
 import numpy as np
-import numpy.polynomial.polynomial as np_poly
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -194,6 +193,7 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
     conf = ni.to_dict()
     conf.update(ntotal.to_dict())
     conf['cr'] = cr
+    conf['stable'] = all(logging_df['stable'])
 
     # Sanity check if scenario is completely cooled down.
     if conf_df['ni_ac'].iloc[-1] != 0:
@@ -202,15 +202,6 @@ def process_conflog(conf_df: pd.DataFrame, start_time: float, end_time: float) -
     else:
         conf['cooled_down'] = True
 
-    # Sanity check 2, if flow is stabilized.
-    mean_n_inst = logging_df['ni_ac'].mean()
-    lin_coeff = np_poly.polyfit(np.linspace(0, 1, len(logging_df)), (logging_df['ni_ac'] - mean_n_inst) / mean_n_inst, 1)
-    if lin_coeff[1] > 0.1:
-        print(f"WARNING: Scenario for N_inst={ni[0]:.1f}, with CR O{'N' if cr else 'FF'} is unstable!\n"
-              f'         Linear coefficient={lin_coeff[1]:.1f}!')
-        conf['stable'] = False
-    else:
-        conf['stable'] = True
     return conf
 
 
@@ -248,7 +239,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
     all_speeds = [result[run]['scn']['speed'] for run in all_runs]
-    all_s_h = [50 * np.sqrt(2) for _ in all_runs]  # [result[run]['scn']['s_h'] for run in all_runs]
+    all_s_h = [result[run]['scn']['s_h'] * np.sqrt(2) for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
     max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
@@ -309,8 +300,14 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     for reso in data.keys():
         for key in data[reso].keys():
             data[reso][key] = np.array(data[reso][key])
+        data[reso]['mean_v'] = data[reso]['dist3D'] / data[reso]['flight_time']
+        data[reso]['stable_filter'] = data[reso]['stable'] & data[reso]['cooled_down']
+        # Set all unstable data to zero.
+        for key in data[reso].keys():
+            if key != 'stable_filter':
+                data[reso][key] = np.where(data[reso]['stable_filter'], data[reso][key], 0)
 
-    # Plot values.
+    # Plot stable values.
     x = data['NR']['ni_ac']
     for reso in data.keys():
         if reso == 'NR':
@@ -318,42 +315,46 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         else:
             color = 'red'
 
-        stable_filter = data[reso]['stable'] & data[reso]['cooled_down']
+        stable_filter = data[reso]['stable_filter']
 
         conf_axs[0].scatter(x[stable_filter], data[reso]['ni_conf'][stable_filter], color=color, label=reso)
-        conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         conf_axs[1].scatter(x[stable_filter], data[reso]['ni_los'][stable_filter], color=color, label=reso)
-        conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         conf_axs[2].scatter(x[stable_filter], data[reso]['ni_ac'][stable_filter], color=color, label=reso)
-        conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         conf_axs[3].scatter(x[stable_filter], data[reso]['ntotal_conf'][stable_filter], color=color, label=reso)
-        conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         conf_axs[4].scatter(x[stable_filter], data[reso]['ntotal_los'][stable_filter], color=color, label=reso)
-        conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         conf_axs[5].scatter(x[stable_filter], data[reso]['ntotal_ac'][stable_filter], color=color, label=reso)
-        conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
 
         flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter], color=color, label=reso)
-        flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
         flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter], color=color, label=reso)
-        flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
-        mean_v = data[reso]['dist3D'] / data[reso]['flight_time']
-        flst_axs[2].scatter(x[stable_filter], mean_v[stable_filter],
-                            color=color, label=reso)
-        flst_axs[2].plot(x[~stable_filter], mean_v[~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+        flst_axs[2].scatter(x[stable_filter], data[reso]['mean_v'][stable_filter], color=color, label=reso)
 
+    # Plot unstable values.
+    stable_filter = data['WR']['stable_filter']
+    color = 'red'
+    conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+
+    flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+
+    # Fit and plot analytical model derivatives.
     ana_model.fit_derivatives(data)
 
-    conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
+    # conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
@@ -381,10 +382,10 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     for ax in conf_axs:
         ax.set_xlabel('NR Inst. no. of aircraft [-]')
-        ax.set_ylim(conf_ylim[ax])
+        # ax.set_ylim(conf_ylim[ax])
         ax.legend()
 
-    flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
+    # flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
     flst_axs[0].set_ylabel('Mean flight time [s]')
     flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.avg_duration,
                      color='blue', label='NR Model')
@@ -398,7 +399,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     flst_axs[2].plot(ana_model.n_inst, ana_model.mean_v_wr, color='red', label='WR Model')
     for ax in flst_axs:
         ax.set_xlabel('NR Inst. no. of aircraft [-]')
-        ax.set_ylim(flst_ylim[ax])
+        # ax.set_ylim(flst_ylim[ax])
         ax.legend()
 
     return [conf_fig, flst_fig], data
@@ -441,7 +442,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_exp_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_stable_flag_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
