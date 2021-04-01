@@ -175,7 +175,7 @@ class Area(Entity):
                 raise RuntimeError('An aircraft escaped the experiment area!')
 
             # Check if mean speed in scenario below threshold.
-            if self.stable and np.mean(traf.gs) < 2.:
+            if self.stable and traf.ntraf >= 5 and np.mean(traf.gs) < 2.:
                 # Turn reso OFF and unset stable flag, to let this scenario be able to finish.
                 print(f'WARNING! Simulation stuck.\n'
                       f'Mean speed of simulation reached {np.mean(traf.gs):.2f}m/s\n'

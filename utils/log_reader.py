@@ -416,6 +416,7 @@ def save_figures(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPU
     """
     print('Saving figures...')
     for fig in fig_list:
+        fig.set_size_inches((16, 8), forward=False)
         fig.savefig(output_dir / 'RESULT' / f'{name}_{fig.number}.svg', bbox_inches='tight')
 
 
@@ -439,7 +440,7 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
 
 
 if __name__ == '__main__':
-    use_pkl = True
+    use_pkl = False
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_stable_flag_NR.pkl')
