@@ -386,7 +386,7 @@ class OpenAP(PerfBase):
     def acceleration(self):
         # using fixed accelerations depending on phase
         acc_ground = 2
-        acc_air = 1.5
+        acc_air = 2
 
         accs = np.zeros(bs.traf.ntraf)
         accs[self.phase == ph.GD] = acc_ground
