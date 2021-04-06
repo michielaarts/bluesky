@@ -1,17 +1,18 @@
 """
 Urban environment speed-based CR algorithm.
 Note: - Decelerating only
-      - Climbing aircraft give way
       - Descending aircraft are ignored.
 
 Created by Michiel Aarts - March 2021
 """
 import numpy as np
 from bluesky.traffic.asas import ConflictResolution
-from bluesky import traf
+from bluesky import traf, settings
 from bluesky.tools import geo
 from bluesky.tools.aero import nm
 from bluesky.stack import command
+
+settings.set_variable_defaults(asas_reactiontime=5.0)
 
 
 def init_plugin():
@@ -35,7 +36,7 @@ class SpeedBased(ConflictResolution):
         # Behind_ratio is the ratio of dtlookahead that the following aircraft
         # will use in its conflict resolution.
         self.behind_angle = np.deg2rad(10)
-        self.reacttime = 5
+        self.reactiontime = settings.asas_reactiontime
 
         # Minimum speed (if allowed by A/C performance). Must be above 0 to prevent erroneous behaviour.
         self.min_speed = 1E-4
@@ -87,9 +88,9 @@ class SpeedBased(ConflictResolution):
         Set reaction time for in-airway conflicts.
         """
         if t is None:
-            return True, f'REACTTIME [Time [s]]\nCurrent reaction time is: {self.reacttime} s'
-        self.reacttime = t
-        return True, f'Reaction time set to: {self.reacttime} s'
+            return True, f'REACTTIME [Time [s]]\nCurrent reaction time is: {self.reactiontime} s'
+        self.reactiontime = t
+        return True, f'Reaction time set to: {self.reactiontime} s'
 
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
@@ -235,7 +236,7 @@ class SpeedBased(ConflictResolution):
                 # Approach such that the time to los becomes dtlookahead * behind_ratio.
                 # Due to this deceleration, the vertical conflict will result in a horizontal resolution.
                 self.is_leading[idx1][ac2] = False
-                tlos_decelerate_factor = 1. - tlos / self.reacttime
+                tlos_decelerate_factor = 1. - tlos / self.reactiontime
 
                 if tlos == 1E8:
                     # Accelerate back to AP speed.
@@ -243,13 +244,13 @@ class SpeedBased(ConflictResolution):
 
                 # Close to each other, the distance + resofach / resofacv margin plays a role.
                 horizontal_distance_to_los = dist - s_h
-                horizontal_desired_vrel = horizontal_distance_to_los / self.reacttime
+                horizontal_desired_vrel = horizontal_distance_to_los / self.reactiontime
                 horizontal_resolution_spd = mag_v2 + horizontal_desired_vrel
                 horizontal_decelerate_factor = 1 - horizontal_resolution_spd / mag_v1
 
                 if ownship.vs[idx1] != 0:
                     vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
-                    vertical_desired_vrel = vertical_distance_to_los / self.reacttime
+                    vertical_desired_vrel = vertical_distance_to_los / self.reactiontime
                     vertical_resolution_vrel = intruder.vs[idx2] + vertical_desired_vrel
                     vertical_decelerate_factor = 1 - vertical_resolution_vrel / ownship.vs[idx1]
                 else:
