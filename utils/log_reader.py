@@ -252,7 +252,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_h = all_s_h[0]
         s_v = all_s_v[0]
         t_l = all_t_l[0]
-    ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
+    ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=25,
                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
@@ -440,7 +440,7 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
 
 
 if __name__ == '__main__':
-    use_pkl = False
+    use_pkl = True
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_extensive_run_NR.pkl')

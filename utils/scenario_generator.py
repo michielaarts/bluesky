@@ -40,7 +40,8 @@ class ScenarioGenerator:
 
     def create_scenario(self, n_inst: np.ndarray, repetitions: int,
                         speed: np.ndarray, duration: Tuple[float, float, float],
-                        h_sep: np.ndarray, v_sep: np.ndarray, t_lookahead: np.ndarray, ac_type: str = 'M600'
+                        h_sep: np.ndarray, v_sep: np.ndarray, t_lookahead: np.ndarray,
+                        t_reaction: np.ndarray, ac_type: str = 'M600'
                         ) -> list:
         """
         Creates a scenario for each value of n_inst, or for a single n_inst.
@@ -53,6 +54,7 @@ class ScenarioGenerator:
         :param h_sep: horizontal separation [m] - optionally an array
         :param v_sep: vertical separation [ft] - optionally an array
         :param t_lookahead: look-ahead time [s] - optionally an array
+        :param t_reaction: reaction time [s] - optionally an array
         :param ac_type: Type of aircraft
 
         :return: list of scenario dicts
@@ -68,6 +70,8 @@ class ScenarioGenerator:
             v_sep = np.array([v_sep] * len(n_inst))
         if isinstance(t_lookahead, float):
             t_lookahead = np.array([t_lookahead] * len(n_inst))
+        if isinstance(t_reaction, float):
+            t_reaction = np.array([t_reaction] * len(n_inst))
 
         if len(speed) != len(n_inst):
             raise ValueError('Length of speed array does not match density array')
@@ -79,10 +83,12 @@ class ScenarioGenerator:
             raise ValueError('Length of vertical separation array does not match density array')
         if len(t_lookahead) != len(n_inst):
             raise ValueError('Length of look-ahead time array does not match density array')
+        if len(t_reaction) != len(n_inst):
+            raise ValueError('Length of reaction time array does not match density array')
 
         # Loop through densities.
         all_scen = []
-        for (n_i, V, s_h, s_v, t_l) in zip(n_inst, speed, h_sep, v_sep, t_lookahead):
+        for (n_i, V, s_h, s_v, t_l, t_r) in zip(n_inst, speed, h_sep, v_sep, t_lookahead, t_reaction):
             for rep in range(repetitions):
                 print(f'Calculating scenario for N_inst={n_i}, Rep={rep}...')
 
@@ -126,7 +132,7 @@ class ScenarioGenerator:
 
                 scen_dict = {'n_inst': n_i, 'rep': rep, 'n_total': n_total,
                              'speed': V, 'duration': duration,
-                             's_h': s_h, 's_v': s_v, 't_l': t_l,
+                             's_h': s_h, 's_v': s_v, 't_l': t_l, 't_r': t_r,
                              'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes}
                 all_scen.append(scen_dict)
         return all_scen
@@ -204,6 +210,7 @@ class ScenarioGenerator:
                 # Pan screen to center node, zoom and hold simulation
                 f.write('# Pan screen to center node\n')
                 f.write(f'{self.tim2txt(0)}>PAN {self.urban_grid.center_node}\n')
+                f.write(f'{self.tim2txt(0)}>SWRAD SYM\n')
                 f.write(f'{self.tim2txt(0)}>ZOOM 20\n\n')
 
                 # Set ASAS and RESO
@@ -211,7 +218,8 @@ class ScenarioGenerator:
                 f.write(f'{self.tim2txt(0)}>ASAS {asas}\n')
                 f.write(f'{self.tim2txt(0)}>ZONER {scn["s_h"] / nm}\n')
                 f.write(f'{self.tim2txt(0)}>ZONEDH {scn["s_v"] / 2}\n')
-                f.write(f'{self.tim2txt(0)}>DTLOOK {scn["t_l"]}\n\n')
+                f.write(f'{self.tim2txt(0)}>DTLOOK {scn["t_l"]}\n')
+                f.write(f'{self.tim2txt(0)}>REACTTIME {scn["t_r"]}\n\n')
 
                 # Load experiment area and logger.
                 f.write('# Initiate area and logger\n')
@@ -256,6 +264,7 @@ class ScenarioGenerator:
             filename_nr = f'batch_{prefix}_NR.scn'
             filename_wr = f'batch_{prefix}_WR.scn'
             safety_factor = 1.5
+            max_rep_nr = max(scn['rep'] for scn in all_scen) + 1
 
             for scn_file in [filename_nr, filename_wr]:
                 with open(scn_path / scn_file, 'w') as f:
@@ -265,7 +274,7 @@ class ScenarioGenerator:
                         f.write(f'# File: {fname}\n')
                     f.write(f'# Instantaneous number of aircraft: '
                             f'{", ".join(str(scn["n_inst"]).format(".0f") for scn in all_scen)}\n')
-                    f.write(f'# Number of repetitions: {all_scen[0]["rep"]:.0f}\n')
+                    f.write(f'# Number of repetitions: {max_rep_nr}\n')
                     f.write(f'# Speed: '
                             f'{", ".join(str(scn["speed"]).format(".1f") for scn in all_scen)} m/s\n')
                     f.write(f'# Duration: '
@@ -277,7 +286,7 @@ class ScenarioGenerator:
                     f.write(f'# Look-ahead time: '
                             f'{", ".join(str(scn["t_l"]).format(".1f") for scn in all_scen)} s\n')
                     f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
-                    f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
+                    f.write(f'# NOTE: this scenario requires plugins: SPEEDBASED, URBAN_AREA\n')
                     f.write('# ########################################### #\n\n')
 
                     for i in range(len(all_scen)):
@@ -306,25 +315,29 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([50, 100, 175, 250, 350])
-    REPETITIONS = 1
-    SPEED = 10.
-    BUILD_UP_DURATION = 900.
-    EXPERIMENT_DURATION = 2700.
-    COOL_DOWN_DURATION = 900.
-    DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'big_grid'
+    N_INST = np.array([15, 30, 45, 60, 75])
+    REPETITIONS = 3
 
-    N_ROWS = 23
+    BUILD_UP_DURATION = 900.  # s
+    EXPERIMENT_DURATION = 2700.  # s
+    COOL_DOWN_DURATION = 900.  # s
+    DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
+    PREFIX = 'patch_is_leading'
+
+    N_ROWS = 7
     N_COLS = N_ROWS
     GRID_HEIGHT = 200.  # m
     GRID_WIDTH = GRID_HEIGHT
+
+    SPEED = 10.  # m/s
+
     S_H = 50.  # m
     S_V = 25.  # ft
     T_L = 20.  # s
+    REACTIONTIME = 5.  # s
 
     scen_gen = ScenarioGenerator(N_ROWS, N_COLS, GRID_WIDTH, GRID_HEIGHT)
-    all_scenarios = scen_gen.create_scenario(N_INST, REPETITIONS, SPEED, DURATION, S_H, S_V, T_L)
+    all_scenarios = scen_gen.create_scenario(N_INST, REPETITIONS, SPEED, DURATION, S_H, S_V, T_L, REACTIONTIME)
     scen_gen.write_scenario(all_scenarios, prefix=PREFIX)
     scen_gen.save_urban_grid(prefix=PREFIX)
 

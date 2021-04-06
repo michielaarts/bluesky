@@ -219,6 +219,7 @@ class Area(Entity):
             [lospairs_new.remove(pair) for pair in ignore_lospair if pair in lospairs_new]
 
             # if lospairs_new:
+            #     # Use this for debugging reso algo.
             #     print('LoS found:', lospairs_new)
             #     print()
 

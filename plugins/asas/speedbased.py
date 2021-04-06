@@ -11,6 +11,8 @@ from bluesky.traffic.asas import ConflictResolution
 from bluesky import traf
 from bluesky.tools import geo
 from bluesky.tools.aero import nm
+from bluesky.stack import command
+
 
 def init_plugin():
     # Configuration parameters
@@ -33,7 +35,7 @@ class SpeedBased(ConflictResolution):
         # Behind_ratio is the ratio of dtlookahead that the following aircraft
         # will use in its conflict resolution.
         self.behind_angle = np.deg2rad(10)
-        self.behind_ratio = 0.9
+        self.reacttime = 5
 
         # Minimum speed (if allowed by A/C performance). Must be above 0 to prevent erroneous behaviour.
         self.min_speed = 1E-4
@@ -79,11 +81,21 @@ class SpeedBased(ConflictResolution):
         self.num_head_on_conflicts = 0
         self.head_on_conflict_pairs = set()
 
+    @command(name='REACTTIME')
+    def setreacttime(self, t: float = None):
+        """
+        Set reaction time for in-airway conflicts.
+        """
+        if t is None:
+            return True, f'REACTTIME [Time [s]]\nCurrent reaction time is: {self.reacttime} s'
+        self.reacttime = t
+        return True, f'Reaction time set to: {self.reacttime} s'
+
     def resolve(self, conf, ownship, intruder):
         """ Resolve all current conflicts """
         # Initialize an array to store the resolution velocity vector for all A/C.
         dv = np.zeros((ownship.ntraf, 3))
-        current_decelerate_factor = np.ones(ownship.ntraf) * -1E4
+        current_decelerate_factor = np.ones(ownship.ntraf) * -1E8
 
         # The old speed vector, cartesian coordinates.
         v = np.array([ownship.gseast, ownship.gsnorth, ownship.vs])
@@ -151,6 +163,7 @@ class SpeedBased(ConflictResolution):
     def speed_based(self, ownship, intruder, conf, qdr, dist, tcpa, tlos, idx1, idx2):
         """ Constrained environment speed-based resolution algorithm """
         # Get second aircraft id for is_leading flag
+        ac1 = ownship.id[idx1]  # For debugging.
         ac2 = intruder.id[idx2]
 
         # Ignore conflicts with descending aircraft.
@@ -175,8 +188,8 @@ class SpeedBased(ConflictResolution):
         # Write velocities as vectors and find relative velocity vector.
         v1 = np.array([ownship.gseast[idx1], ownship.gsnorth[idx1], ownship.vs[idx1]])
         v2 = np.array([intruder.gseast[idx2], intruder.gsnorth[idx2], intruder.vs[idx2]])
-        mag_v1 = ownship.tas[idx1]
-        mag_v2 = intruder.tas[idx2]
+        mag_v1 = ownship.gs[idx1]
+        mag_v2 = intruder.gs[idx2]
         vrel = np.array(v2 - v1)
         mag_vrel = np.linalg.norm(vrel)
 
@@ -195,8 +208,8 @@ class SpeedBased(ConflictResolution):
         # Write velocities as vectors and find relative velocity vector.
         owntrkrad = np.deg2rad(ownship.trk[idx1])
         inttrkrad = np.deg2rad(intruder.trk[idx2])
-        v1_ap = ownship.tas[idx1] * np.array([np.sin(owntrkrad), np.cos(owntrkrad)])
-        v2_ap = intruder.tas[idx1] * np.array([np.sin(inttrkrad), np.cos(inttrkrad)])
+        v1_ap = ownship.ap.tas[idx1] * np.array([np.sin(owntrkrad), np.cos(owntrkrad)])
+        v2_ap = intruder.ap.tas[idx1] * np.array([np.sin(inttrkrad), np.cos(inttrkrad)])
         vrel_ap = np.array(v2_ap - v1_ap)
         mag_vrel_ap = np.linalg.norm(vrel_ap)
 
@@ -222,29 +235,32 @@ class SpeedBased(ConflictResolution):
                 # Approach such that the time to los becomes dtlookahead * behind_ratio.
                 # Due to this deceleration, the vertical conflict will result in a horizontal resolution.
                 self.is_leading[idx1][ac2] = False
-                desired_tlos = conf.dtlookahead * self.behind_ratio
+                tlos_decelerate_factor = 1. - tlos / self.reacttime
 
-                horizontal_distance_to_los = dist - s_h * np.sqrt(2)
-                horizontal_desired_vrel = horizontal_distance_to_los / desired_tlos
+                if tlos == 1E8:
+                    # Accelerate back to AP speed.
+                    tlos_decelerate_factor = 1. - ownship.ap.tas[idx1] / mag_v1
+
+                # Close to each other, the distance + resofach / resofacv margin plays a role.
+                horizontal_distance_to_los = dist - s_h
+                horizontal_desired_vrel = horizontal_distance_to_los / self.reacttime
                 horizontal_resolution_spd = mag_v2 + horizontal_desired_vrel
                 horizontal_decelerate_factor = 1 - horizontal_resolution_spd / mag_v1
 
-                vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
-                vertical_desired_vrel = vertical_distance_to_los / desired_tlos
-                vertical_resolution_vrel = intruder.vs[idx2] + vertical_desired_vrel
-                vertical_decelerate_factor = 1 - vertical_resolution_vrel / ownship.vs[idx1]
-
-                if vertical_distance_to_los < 0:
-                    # Already at same level, use horizontal decelerate factor.
-                    decelerate_factor = horizontal_decelerate_factor
+                if ownship.vs[idx1] != 0:
+                    vertical_distance_to_los = abs(intruder.alt[idx2] - ownship.alt[idx1]) - s_v
+                    vertical_desired_vrel = vertical_distance_to_los / self.reacttime
+                    vertical_resolution_vrel = intruder.vs[idx2] + vertical_desired_vrel
+                    vertical_decelerate_factor = 1 - vertical_resolution_vrel / ownship.vs[idx1]
                 else:
-                    decelerate_factor = max(horizontal_decelerate_factor, vertical_decelerate_factor)
+                    vertical_decelerate_factor = np.nan
 
-                if decelerate_factor < 0:
-                    # Acceleration advised, do not accelerate into rear.
-                    return v1 * 0, idx1, 0
+                decelerate_factor = max(tlos_decelerate_factor,
+                                        horizontal_decelerate_factor,
+                                        vertical_decelerate_factor)
+
                 if decelerate_factor > 1:
-                    decelerate_factor = 1
+                    decelerate_factor = 1.
                 return -v1 * decelerate_factor, idx1, decelerate_factor
             else:
                 # Intruder must resolve, do nothing.
@@ -263,20 +279,23 @@ class SpeedBased(ConflictResolution):
                 # Determine time to incur for resolution.
                 tr = (s_h + mag_dcpa) / (mag_v2 * np.sin(cos_angle))
 
-                if tr > 0. and tlos < 1000.:
-                    # Incur tr.
-                    decelerate_factor = 1 - tlos / (tr + tlos)
+                if tlos < 1E8:
+                    # Incur or gain tr.
+                    decelerate_factor = 1. - tlos / (tr + tlos)
+                elif tcpa < 0:
+                    # Los, decelerate to stop.
+                    decelerate_factor = 1.
+                elif tr > -tcpa:
+                    # Within resofach margin, but not predicting a LoS anymore.
+                    # Incur or gain tr.
+                    decelerate_factor = 1. - tcpa / (tr + tcpa)
                 else:
                     # Acceleration possible.
-                    # Gain tr.
-                    if abs(tr) < tcpa:
-                        decelerate_factor = 1 - tcpa / (tr + tcpa)
-                    else:
-                        # Accelerate back to AP speed.
-                        decelerate_factor = -1
+                    # Accelerate back to AP speed.
+                    decelerate_factor = 1. - ownship.ap.tas[idx1] / mag_v1
 
                 if decelerate_factor > 1:
-                    decelerate_factor = 1
+                    decelerate_factor = 1.
                 return -v1 * decelerate_factor, idx1, decelerate_factor
             else:
                 # Ownship crossing first, intruder must resolve, do nothing.
@@ -298,20 +317,23 @@ class SpeedBased(ConflictResolution):
                 # Determine time to incur for resolution.
                 tr = (s_h - mag_dcpa) / (mag_v2 * np.sin(cos_angle))
 
-                if tr > 0. and tlos < 1000.:
-                    # Incur tr.
-                    decelerate_factor = 1 - tlos / (tr + tlos)
+                if tlos < 1E8:
+                    # Pre-los, incur or gain tr.
+                    decelerate_factor = 1. - tlos / (tr + tlos)
+                elif tcpa < 0:
+                    # LoS, decelerate to stop.
+                    decelerate_factor = 1.
+                elif tr > -tcpa:
+                    # Within resofach margin, but not predicting a LoS anymore.
+                    # Incur or gain tr.
+                    decelerate_factor = 1. - tcpa / (tr + tcpa)
                 else:
                     # Acceleration possible.
-                    # Gain tr.
-                    if abs(tr) < tcpa:
-                        decelerate_factor = 1 - tcpa / (tr + tcpa)
-                    else:
-                        # Accelerate back to AP speed.
-                        decelerate_factor = -1
+                    # Accelerate back to AP speed.
+                    decelerate_factor = 1. - ownship.ap.tas[idx1] / mag_v1
 
                 if decelerate_factor > 1:
-                    decelerate_factor = 1
+                    decelerate_factor = 1.
                 return -v1 * decelerate_factor, idx1, decelerate_factor
         else:
             raise ValueError(f'Something went wrong in speed_based(),\n' +
