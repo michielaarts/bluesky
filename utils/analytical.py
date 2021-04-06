@@ -12,7 +12,7 @@ import pickle as pkl
 from plugins.urban import UrbanGrid
 from pathlib import Path
 from scn_reader import plot_flow_rates
-from bluesky.tools.aero import fpm
+from bluesky.tools.aero import fpm, ft
 
 # VS depends on the steepness used in autopilot.py, adjust accordingly.
 VS = 194. * fpm
@@ -31,12 +31,11 @@ class AnalyticalModel:
         self.speed = speed
         self.vs = vs
         self.s_h = s_h
-        self.s_v = s_v
+        self.s_v = s_v * ft  # m
         self.t_l = t_l
 
-        self.cruise_alt = 50.  # ft
-        self.departure_alt = 0.  # ft
-        self.t_X = self.s_h * np.sqrt(2) / self.speed  # Time to cross an intersection [s]
+        self.cruise_alt = 50. * ft  # m
+        self.departure_alt = 0. * ft  # m
         self.avg_duration = self.urban_grid.avg_route_length / self.speed
 
         # Sanity check.
@@ -166,6 +165,13 @@ class AnalyticalModel:
 
         # Delay model.
         for node in self.urban_grid.all_nodes:
+            if node in self.urban_grid.od_nodes:
+                # Time to merge an altitude layer [s].
+                # TODO: does the s_v corner of the disc play a role here?
+                t_x = self.s_h / self.speed
+            else:
+                # Time to cross an intersection [s]. Change sqrt(2) if angle between airways is not 90 degrees.
+                t_x = self.s_h * np.sqrt(2) / self.speed
             node_flows = flow_df.iloc[
                 flow_df.index.get_level_values('via') == node
             ].copy()
@@ -178,15 +184,15 @@ class AnalyticalModel:
                 raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', node_flows)
 
             total_q = node_flows.sum()
-            total_y = total_q * self.t_X
+            total_y = total_q * t_x
             total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
             for (i, j) in [(1, 0), (0, 1)]:
                 # General delay.
                 q_g = node_flows.iloc[i].squeeze()
                 q_r = node_flows.iloc[j].squeeze()
-                lambda_u = 1 - self.t_X * q_r
+                lambda_u = 1 - t_x * q_r
                 c_u = 1 / q_r
-                y = q_g * self.t_X
+                y = q_g * t_x
                 general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
                 # Stochastic delay.
