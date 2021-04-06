@@ -239,7 +239,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
     all_speeds = [result[run]['scn']['speed'] for run in all_runs]
-    all_s_h = [result[run]['scn']['s_h'] * np.sqrt(2) for run in all_runs]
+    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
     max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
@@ -443,7 +443,7 @@ if __name__ == '__main__':
     use_pkl = False
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_stable_flag_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_extensive_run_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:

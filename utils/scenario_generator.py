@@ -220,9 +220,10 @@ class ScenarioGenerator:
                         self.urban_grid.max_lat + 1, self.urban_grid.max_lon + 1]
                 f.write(f'{self.tim2txt(0)}>AREA {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n\n')
 
-                # Set dt of fms to 0
-                f.write('# Set dt of FMS to 0\n')
-                f.write(f'{self.tim2txt(0)}>DT FMS 0.001\n\n')
+                # Set dt of fms and asas to 0
+                f.write('# Set dt of FMS and ASAS to 0\n')
+                f.write(f'{self.tim2txt(0)}>DT FMS 0.001\n')
+                f.write(f'{self.tim2txt(0)}>DT ASAS 0.001\n\n')
 
                 # Create aircraft.
                 f.write('# Create aircraft.\n')
@@ -305,16 +306,16 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10, 20, 30, 40, 50, 60, 70])
-    REPETITIONS = 10
+    N_INST = np.array([50, 100, 175, 250, 350])
+    REPETITIONS = 1
     SPEED = 10.
     BUILD_UP_DURATION = 900.
     EXPERIMENT_DURATION = 2700.
     COOL_DOWN_DURATION = 900.
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'extensive_run'
+    PREFIX = 'big_grid'
 
-    N_ROWS = 7
+    N_ROWS = 23
     N_COLS = N_ROWS
     GRID_HEIGHT = 200.  # m
     GRID_WIDTH = GRID_HEIGHT

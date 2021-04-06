@@ -382,14 +382,6 @@ class SpeedBased(ConflictResolution):
                 changeactive[idx1] = changeactive.get(idx1, False)
                 # If conflict is solved, remove it from the resopairs list.
                 delpairs.add(conflict)
-                # Reset is_leading flag.
-                if idx2 >= 0:
-                    self.is_leading[idx1].pop(intruder.id[idx2])
-                else:
-                    # Check which aircraft are deleted and remove those.
-                    to_pop = [acid for acid in self.is_leading[idx1].keys() if acid not in ownship.id]
-                    for acid in to_pop:
-                        self.is_leading[idx1].pop(acid)
 
         for idx, active in changeactive.items():
             # Loop a second time: this is to avoid that ASAS resolution is
@@ -407,6 +399,15 @@ class SpeedBased(ConflictResolution):
 
         # Remove pairs from the list that are past CPA or have deleted aircraft.
         self.resopairs -= delpairs
+
+        # Remove all combinations not in resopairs from is_leading flag.
+        allowed_combinations = {idx: [] for idx in range(ownship.ntraf)}
+        for pair in self.resopairs:
+            allowed_combinations[ownship.id.index(pair[0])].append(pair[1])
+        for idx in range(ownship.ntraf):
+            to_pop = [acid for acid in self.is_leading[idx].keys() if acid not in allowed_combinations[idx]]
+            for acid in to_pop:
+                self.is_leading[idx].pop(acid)
 
     def detect(self, pairs, ownship, intruder) -> dict:
         """

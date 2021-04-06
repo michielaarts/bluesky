@@ -36,7 +36,7 @@ class AnalyticalModel:
 
         self.cruise_alt = 50.  # ft
         self.departure_alt = 0.  # ft
-        self.t_X = self.s_h * 1.05 / self.speed  # Time to cross an intersection [s]
+        self.t_X = self.s_h * np.sqrt(2) / self.speed  # Time to cross an intersection [s]
         self.avg_duration = self.urban_grid.avg_route_length / self.speed
 
         # Sanity check.
@@ -208,7 +208,7 @@ class AnalyticalModel:
         mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
 
         # Calculate nr case (as check).
-        max_ni_per_section = self.urban_grid.grid_height / (self.s_h * 1.05)
+        max_ni_per_section = self.urban_grid.grid_height / self.s_h
         nr_duration_per_section = pd.DataFrame(self.urban_grid.grid_height / self.speed,
                                                index=self.delays.index, columns=self.delays.columns)
         nr_duration_per_section = nr_duration_per_section[
