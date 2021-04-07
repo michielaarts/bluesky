@@ -239,7 +239,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
     all_speeds = [result[run]['scn']['speed'] for run in all_runs]
-    all_s_h = [result[run]['scn']['s_h'] * np.sqrt(2) for run in all_runs]
+    all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
     max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
@@ -252,7 +252,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_h = all_s_h[0]
         s_v = all_s_v[0]
         t_l = all_t_l[0]
-    ana_model = AnalyticalModel(urban_grid, max_value=max_val, accuracy=25,
+    ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=25,
                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
@@ -359,7 +359,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
+    # conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
                      label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.avg_los_duration_nr:.1f}$s')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
@@ -440,10 +440,10 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
 
 
 if __name__ == '__main__':
-    use_pkl = False
+    use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_stable_flag_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_patch_is_leading_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
