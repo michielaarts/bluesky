@@ -85,30 +85,32 @@ class AnalyticalModel:
         # Conflicts --------
         # Crossing flows.
         vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * self.s_h * vrel * self.t_l
+        c_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l
                               / self.urban_grid.area)
 
         # Self interaction with departing traffic. Same as crossing, but in xz-plane.
+        # TODO: Add depth (equivalent to altitude layers).
         alt_to_climb = self.cruise_alt - self.departure_alt
         time_to_climb = alt_to_climb / self.vs
         n_inst_departing = self.departure_rate * time_to_climb
         n_inst_cruise = self.n_inst - n_inst_departing
-        area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / area
+        xz_area = alt_to_climb * np.sqrt(self.urban_grid.area)
+        # c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / xz_area
+        c_inst_nr_departing = 0 * n_inst_departing
 
         c_inst_nr = c_inst_nr_crossing + c_inst_nr_departing
 
         # LoS ---------
-        los_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * np.pi * np.power(self.s_h / 2, 2)
+        # los_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * np.pi * np.power(self.s_h, 2)
+        #                         / self.urban_grid.area)
+        los_inst_nr_crossing = (np.power(self.n_inst, 2) * np.pi * np.power(self.s_h, 2)
                                 / self.urban_grid.area)
 
-        # Self interaction with departing traffic. Same as crossing, but in xz-plane.
-        alt_to_climb = self.cruise_alt - self.departure_alt
-        time_to_climb = alt_to_climb / self.vs
-        n_inst_departing = self.departure_rate * time_to_climb
-        n_inst_cruise = self.n_inst - n_inst_departing
-        area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        los_inst_nr_departing = n_inst_departing * n_inst_cruise * np.pi * np.power(self.s_v / 2, 2) / area
+
+        # Self interaction with departing traffic.
+        # TODO: Add depth (equivalent to altitude layers).
+        # los_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.s_h / xz_area
+        los_inst_nr_departing = 0 * n_inst_departing
 
         los_inst_nr = los_inst_nr_crossing + los_inst_nr_departing
 
