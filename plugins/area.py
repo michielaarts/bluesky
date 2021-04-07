@@ -168,7 +168,7 @@ class Area(Entity):
                 # idxnew = [idxdict.get(i) for i in confpairs_new]
                 # dcpa_new = np.asarray(traf.cd.dcpa)[idxnew]
                 # tcpa_new = np.asarray(traf.cd.tcpa)[idxnew]
-                # tLOS_new = np.asarray(traf.cd.tlos)[idxnew]
+                # tLOS_new = np.asarray(traf.cd.tLOS)[idxnew]
                 # qdr_new = np.asarray(traf.cd.qdr)[idxnew]
                 # dist_new = np.asarray(traf.cd.dist)[idxnew]
 
