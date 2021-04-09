@@ -362,17 +362,17 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
-                     label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.avg_los_duration_nr:.1f}$s')
+                     label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.mean_los_duration_nr:.1f}$s')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
-                     label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.avg_los_duration_wr:.1f}$s')
+                     label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.mean_los_duration_wr:.1f}$s')
     conf_axs[2].set_ylabel('WR Inst. no. of aircraft')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='lightblue', linestyle='--',
-                     label=rf'NR Fitted, $\bar{{t_{{c,NR}}}}={ana_model.avg_conflict_duration_nr:.1f}$s')
+                     label=rf'NR Fitted, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr, color='coral', linestyle='--',
-                     label=rf'WR Fitted, $\bar{{t_{{c,WR}}}}={ana_model.avg_conflict_duration_wr:.1f}$s')
+                     label=rf'WR Fitted, $\bar{{t_{{c,WR}}}}={ana_model.mean_conflict_duration_wr:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
     conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr, color='lightblue', linestyle='--',
                      label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
@@ -388,11 +388,11 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     # flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
     flst_axs[0].set_ylabel('Mean flight time [s]')
-    flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.avg_duration,
+    flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.mean_flight_time,
                      color='blue', label='NR Model')
-    flst_axs[0].plot(ana_model.n_inst, ana_model.mean_duration_wr, color='red', label='WR Model')
+    flst_axs[0].plot(ana_model.n_inst, ana_model.mean_flight_time_wr, color='red', label='WR Model')
     flst_axs[1].set_ylabel('Mean 2D distance [m]')
-    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.avg_route_length,
+    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.mean_route_length,
                      color='purple', label='NR/WR Model')
     flst_axs[2].set_ylabel('Mean velocity [m/s]')
     flst_axs[2].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.speed,

@@ -93,8 +93,8 @@ class ScenarioGenerator:
                 print(f'Calculating scenario for N_inst={n_i}, Rep={rep}...')
 
                 # Determine departure times.
-                avg_route_duration = self.urban_grid.avg_route_length / V
-                spawn_rate = n_i / avg_route_duration
+                mean_flight_time = self.urban_grid.mean_route_length / V
+                spawn_rate = n_i / mean_flight_time
                 spawn_interval = 1 / spawn_rate
                 n_total = round(sum(duration) * spawn_rate)
                 # Exponential distribution.
@@ -200,7 +200,7 @@ class ScenarioGenerator:
                 f.write(f'# Horizontal separation: {scn["s_h"]:.1f}m\n')
                 f.write(f'# Vertical separation: {scn["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scn["t_l"]:.1f}s\n')
-                f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
+                f.write(f'# Mean route length: {self.urban_grid.mean_route_length:.1f}m\n')
                 f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
                 f.write('# ########################################### #\n\n')
 
@@ -285,7 +285,7 @@ class ScenarioGenerator:
                             f'{", ".join(str(scn["s_v"]).format(".1f") for scn in all_scen)} ft\n')
                     f.write(f'# Look-ahead time: '
                             f'{", ".join(str(scn["t_l"]).format(".1f") for scn in all_scen)} s\n')
-                    f.write(f'# Mean route length: {self.urban_grid.avg_route_length:.1f}m\n')
+                    f.write(f'# Mean route length: {self.urban_grid.mean_route_length:.1f}m\n')
                     f.write(f'# NOTE: this scenario requires plugins: SPEEDBASED, URBAN_AREA\n')
                     f.write('# ########################################### #\n\n')
 

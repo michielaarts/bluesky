@@ -4,7 +4,6 @@ The analytical model class for an urban grid network.
 Created by Michiel Aarts, March 2021
 """
 from typing import Tuple
-import numpy.polynomial.polynomial as np_poly
 import scipy.optimize as opt
 import numpy as np
 import pandas as pd
@@ -36,51 +35,59 @@ class AnalyticalModel:
 
         self.cruise_alt = 50. * ft  # m
         self.departure_alt = 0. * ft  # m
-        self.avg_duration = self.urban_grid.avg_route_length / self.speed
+        self.mean_flight_time = self.urban_grid.mean_route_length / self.speed
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
                 self.urban_grid.n_rows != self.urban_grid.n_cols:
             raise NotImplementedError('Analytical model can only be determined for an equal grid size')
 
+        # Initiate arrays.
         self.n_inst = np.linspace(10, self.max_value, self.accuracy)
-        self.n_total = self.n_inst * self.duration[1] / self.avg_duration
 
+        # Determine flow proportions and rates.
+        self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time
         self.flow_proportion = self.expand_flow_proportion()
-        self.flow_rates = self.determine_flow_rates()
-        self.departure_rate = self.determine_departure_rate()
-        self.arrival_rate = self.departure_rate  # by definition, for a stable system.
-        self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)
+        self.flow_rates = self.determine_flow_rates()  # veh / s
+        self.departure_rate = self.n_inst / self.mean_flight_time  # veh / s
+        self.arrival_rate = self.departure_rate  # By definition, for a stable system
+        self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)  # veh / s
 
-        # n_inst departure / arrival aircraft.
+        # Instantaneous no. of departure / arrival aircraft.
         self.n_inst_da = (self.n_inst * self.flow_proportion.where(
             (self.flow_proportion.index.get_level_values('from') == 'departure')
             | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
 
-        # NR Model
+        # NR conflict count Model.
         self.c_inst_nr, self.los_inst_nr = self.nr_model()
 
-        # Fitted variables
+        # WR delay Model.
+        self.delays = self.delay_model(self.from_flow_rates)
+        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr = self.wr_model()
+
+        # Fitted variables.
         self.c_inst_wr_fitted = None
-        self.avg_conflict_duration_nr = None  # s
-        self.avg_conflict_duration_wr = None  # s
+        self.mean_conflict_duration_nr = None  # s
+        self.mean_conflict_duration_wr = None  # s
         self.c_total_nr = None
         self.c_total_wr = None
         self.false_conflict_ratio = None
         self.resolve_ratio = None
         self.los_total_nr = None
         self.los_total_wr = None
-        self.avg_los_duration_nr = None  # s
-        self.avg_los_duration_wr = None  # s
+        self.mean_los_duration_nr = None  # s
+        self.mean_los_duration_wr = None  # s
         self.los_inst_nr_fitted = None
         self.los_inst_wr = None
 
-        # WR Model
-        self.delays = self.delay_model(self.from_flow_rates)
-
-        self.mean_v_wr, self.n_inst_wr, self.mean_duration_wr = self.wr_model()
-
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        The conflict count model without conflict resolution.
+        Calculates the instantaneous number of conflicts and losses of separation,
+         based on the flows through the urban grid.
+
+        :return: (Inst. no. of conflicts, Inst. no. of LoS)
+        """
         print('Calculating analytical NR model...')
         # Self interaction (LoS only). TODO: Include departing traffic?
         nr_ni_per_section = self.urban_grid.grid_height / self.speed * self.from_flow_rates.copy()
@@ -149,11 +156,6 @@ class AnalyticalModel:
             passage_rate = ni * self.speed / self.urban_grid.grid_height
             flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
         return flow_rates
-
-    def determine_departure_rate(self) -> np.ndarray:
-        avg_route_duration = self.urban_grid.avg_route_length / self.speed
-        spawn_rate = self.n_inst / avg_route_duration
-        return spawn_rate
 
     def determine_from_flow_rates(self, flow_df) -> pd.DataFrame:
         from_flows = flow_df.groupby(['from', 'via']).sum()
@@ -235,36 +237,43 @@ class AnalyticalModel:
         return delays
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        The WR delay model. Calculates the mean velocity, instantaneous number of aircraft,
+         and the mean flight time of the flows through an urban grid.
+        If the delay model predicts an unstable system, the values are set to zero.
+
+        :return: (Mean velocity, No. Inst. A/C, Mean flight time)
+        """
         print('Calculating analytical WR model...')
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
 
-        nr_duration_per_section = self.urban_grid.grid_height / self.speed
-        wr_duration_per_section = self.delays.copy() + nr_duration_per_section
-        wr_duration_per_section = wr_duration_per_section[
-            wr_duration_per_section.index.get_level_values('from') != 'departure'
+        nr_flight_time_per_section = self.urban_grid.grid_height / self.speed
+        wr_flight_time_per_section = self.delays.copy() + nr_flight_time_per_section
+        wr_flight_time_per_section = wr_flight_time_per_section[
+            wr_flight_time_per_section.index.get_level_values('from') != 'departure'
         ]
-        wr_v_per_section = self.urban_grid.grid_height / wr_duration_per_section
+        wr_v_per_section = self.urban_grid.grid_height / wr_flight_time_per_section
         wr_separation_per_section = wr_v_per_section / self.from_flow_rates
         wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
         wr_ni = wr_ni_per_section.sum() + self.n_inst_da
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
-        wr_mean_duration = self.urban_grid.avg_route_length / wr_mean_v
+        wr_mean_flight_time = self.urban_grid.mean_route_length / wr_mean_v
 
-        # Filter unstable values.
+        # Filter unstable values and set to zero.
         unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
         wr_mean_v[unstable_filter] = 0
         wr_ni[unstable_filter] = 0
-        wr_mean_duration[unstable_filter] = 0
+        wr_mean_flight_time[unstable_filter] = 0
 
-        return wr_mean_v, wr_ni, wr_mean_duration
+        return wr_mean_v, wr_ni, wr_mean_flight_time
 
-    def _fit_avg_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:
-        """ Least squares fit of the avg. conflict or los duration """
+    def _fit_mean_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:
+        """ Least squares fit of the mean conflict or los duration """
         if exp_inst.shape != exp_total.shape:
             raise ValueError('Inputs must be of same size')
-        t_avg = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
+        t_mean = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
                          x0=2., disp=False)[0]
-        return t_avg
+        return t_mean
 
     @staticmethod
     def _fit_conflict_los_ratio(exp_c_total: np.ndarray, exp_los_total: np.ndarray) -> float:
@@ -281,29 +290,35 @@ class AnalyticalModel:
                        x0=1, disp=False)[0]
         return res * np.power(self.n_inst, 2)
 
-    def fit_derivatives(self, data: dict):
+    def fit_derivatives(self, data: dict) -> None:
+        """
+        Fits all derivatives and functions of a given simulation experiment result.
+        E.g.: mean conflict duration, false conflict percentage, etc.
+
+        :param data: Data dictionary from utils/log_reader.py
+        """
         print('Fitting derivatives...')
-        # Set all unstable data to nan
+        # Set all unstable data to nan.
         for reso in data.keys():
             for key in data[reso].keys():
                 if key != 'stable_filter':
                     data[reso][key] = np.where(data[reso]['stable_filter'], data[reso][key], np.nan)
 
         self.c_inst_wr_fitted = self._fit_c_inst_wr(data['NR']['ni_ac'], data['WR']['ni_conf'])
-        self.avg_conflict_duration_nr = self._fit_avg_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
-        self.avg_conflict_duration_wr = self._fit_avg_duration(data['WR']['ni_conf'], data['WR']['ntotal_conf'])
-        self.avg_los_duration_nr = self._fit_avg_duration(data['NR']['ni_los'], data['NR']['ntotal_los'])
-        self.avg_los_duration_wr = self._fit_avg_duration(data['WR']['ni_los'], data['WR']['ntotal_los'])
+        self.mean_conflict_duration_nr = self._fit_mean_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
+        self.mean_conflict_duration_wr = self._fit_mean_duration(data['WR']['ni_conf'], data['WR']['ntotal_conf'])
+        self.mean_los_duration_nr = self._fit_mean_duration(data['NR']['ni_los'], data['NR']['ntotal_los'])
+        self.mean_los_duration_wr = self._fit_mean_duration(data['WR']['ni_los'], data['WR']['ntotal_los'])
         self.false_conflict_ratio = self._fit_conflict_los_ratio(data['NR']['ntotal_conf'],
                                                                  data['NR']['ntotal_los'])
         self.resolve_ratio = self._fit_conflict_los_ratio(data['WR']['ntotal_conf'], data['WR']['ntotal_los'])
 
-        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.avg_conflict_duration_nr
-        self.c_total_wr = self.c_inst_wr_fitted * self.duration[1] / self.avg_conflict_duration_wr
+        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.mean_conflict_duration_nr
+        self.c_total_wr = self.c_inst_wr_fitted * self.duration[1] / self.mean_conflict_duration_wr
         self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
         self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
-        self.los_inst_nr_fitted = self.los_total_nr * self.avg_los_duration_nr / self.duration[1]
-        self.los_inst_wr = self.los_total_wr * self.avg_los_duration_wr / self.duration[1]
+        self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
+        self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
 
 
 if __name__ == '__main__':

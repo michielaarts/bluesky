@@ -79,7 +79,7 @@ class UrbanGrid(Entity):
 
         self._paths = None
         self._pathlengths = None
-        self._calculated_avg = None
+        self._calculated_mean_route_length = None
         self._flow_df = None
 
         self.create_nodes()
@@ -339,7 +339,7 @@ class UrbanGrid(Entity):
 
     def _evaluate_routes(self) -> None:
         """
-        Evaluates 10k routes for avg_route_length and the flow_df.
+        Evaluates 10k routes for mean route length and the flow_df.
 
         :return:
         """
@@ -354,20 +354,20 @@ class UrbanGrid(Entity):
             paths[i], pathlengths[i], _, _ = self.calculate_shortest_path(origin, destination)
         self._paths = paths
         self._pathlengths = pathlengths
-        self._calculated_avg = float(np.mean(self._pathlengths))
+        self._calculated_mean_route_length = float(np.mean(self._pathlengths))
 
     @property
-    def avg_route_length(self) -> float:
+    def mean_route_length(self) -> float:
         """
-        Getter for the average route length through the grid.
+        Getter for the mean route length through the grid.
 
-        :return: avg_route_length [m]: float
+        :return: Mean route length [m]
         """
-        if self._calculated_avg is None:
-            print('Urban.py>>>Calculating avg. route length. This may take >1min.')
+        if self._calculated_mean_route_length is None:
+            print('Urban.py>>>Calculating mean route length. This may take >1min.')
             self._evaluate_routes()
-            print('Urban.py>>>Avg. route length obtained.')
-        return self._calculated_avg
+            print('Urban.py>>>Mean route length obtained.')
+        return self._calculated_mean_route_length
 
     def _create_flow_df(self) -> None:
         """
