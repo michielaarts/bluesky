@@ -331,6 +331,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     # Plot unstable values.
     stable_filter = data['WR']['stable_filter']
     color = 'red'
+    reso = 'WR'
     conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
                      '*', color=color, label=f'{reso}, unstable')
     conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
@@ -359,7 +360,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
-    # conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
+    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
                      label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.avg_los_duration_nr:.1f}$s')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
@@ -440,7 +441,7 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
 
 
 if __name__ == '__main__':
-    use_pkl = True
+    use_pkl = False
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_patch_is_leading_NR.pkl')

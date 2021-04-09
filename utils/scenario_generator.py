@@ -322,7 +322,7 @@ if __name__ == '__main__':
     EXPERIMENT_DURATION = 2700.  # s
     COOL_DOWN_DURATION = 900.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'patch_is_leading'
+    PREFIX = 'conflict_count'
 
     N_ROWS = 7
     N_COLS = N_ROWS

@@ -188,35 +188,36 @@ class Area(Entity):
             arrived = ~traf.swlnav
 
             # Count new conflicts and losses of separation.
-            # Store statistics for all new conflict pairs, i.e.:
-            # Conflict pairs detected in the current timestep that were not yet
-            # present in the previous timestep.
-            confpairs_new = list(traf.cd.confpairs_unique - self.prevconfpairs)
-            lospairs_new = list(traf.cd.lospairs_unique - self.prevlospairs)
+            # Each conflict pair is only counted once in the entire simulation.
+            # Store statistics for all new conflict pairs.
+            confpairs_new = traf.cd.confpairs_unique - self.prevconfpairs
+            lospairs_new = traf.cd.lospairs_unique - self.prevlospairs
 
             # Ignore conflicts and losses for descending or arrived aircraft.
-            ignore_confpair = set()
-            ignore_lospair = set()
+            ignore_confpairs = set()
+            ignore_lospairs = set()
             for pair in traf.cd.confpairs_unique:
                 for ac in pair:
                     try:
                         idx = traf.id.index(ac)
                         if traf.vs[idx] < -1E-4 or arrived[idx]:
-                            ignore_confpair.add(pair)
+                            ignore_confpairs.add(pair)
                     except ValueError:
                         # Aircraft is already deleted.
-                        ignore_confpair.add(pair)
+                        ignore_confpairs.add(pair)
             for pair in traf.cd.lospairs_unique:
+                # Do not count LoS'ses as conflicts.
+                ignore_confpairs.add(pair)
                 for ac in pair:
                     try:
                         idx = traf.id.index(ac)
                         if traf.vs[idx] < -1E-4 or arrived[idx]:
-                            ignore_confpair.add(pair)
+                            ignore_lospairs.add(pair)
                     except ValueError:
                         # Aircraft is already deleted.
-                        ignore_confpair.add(pair)
-            [confpairs_new.remove(pair) for pair in ignore_confpair if pair in confpairs_new]
-            [lospairs_new.remove(pair) for pair in ignore_lospair if pair in lospairs_new]
+                        ignore_lospairs.add(pair)
+            confpairs_new -= ignore_confpairs
+            lospairs_new -= ignore_lospairs
 
             # if lospairs_new:
             #     # Use this for debugging reso algo.
@@ -226,8 +227,8 @@ class Area(Entity):
             self.ntotal_conf += len(confpairs_new)
             self.ntotal_los += len(lospairs_new)
 
-            self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique) - len(ignore_confpair),
-                              len(traf.cd.lospairs_unique) - len(ignore_lospair),
+            self.conf_log.log(traf.ntraf, len(traf.cd.confpairs_unique) - len(ignore_confpairs),
+                              len(traf.cd.lospairs_unique) - len(ignore_lospairs),
                               self.ntotal_ac, self.ntotal_conf, self.ntotal_los,
                               bool(traf.cr.do_cr), self.stable)
 
@@ -240,10 +241,8 @@ class Area(Entity):
 
             # Update values for next loop.
             self.inside_exp = inside_exp
-            self.prevconfpairs = set(traf.cd.confpairs_unique)
-            self.prevlospairs = set(traf.cd.lospairs_unique)
-            [self.prevconfpairs.remove(pair) for pair in ignore_confpair]
-            [self.prevlospairs.remove(pair) for pair in ignore_lospair]
+            self.prevconfpairs.update(confpairs_new)
+            self.prevlospairs.update(lospairs_new)
 
             # Log flight statistics when reaching destination and delete aircraft.
             del_idx = np.flatnonzero(arrived)

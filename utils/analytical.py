@@ -82,39 +82,66 @@ class AnalyticalModel:
 
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
         print('Calculating analytical NR model...')
-        # Conflicts --------
-        # Crossing flows.
-        vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
-        c_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * 2 * self.s_h * vrel * self.t_l
-                              / self.urban_grid.area)
+        # Self interaction (LoS only).
+        nr_ni_per_section = self.urban_grid.grid_height / self.speed * self.from_flow_rates.copy()
+        nr_li_si_per_section = 0. * nr_ni_per_section.copy()
+        for n in range(2, 100):
+            poisson_prob_per_section = nr_ni_per_section.pow(n) * np.exp(-nr_ni_per_section) / np.math.factorial(n)
+            nr_li_si_per_section += (poisson_prob_per_section * n * (n - 1) * self.s_h
+                                     / (self.urban_grid.grid_height + self.s_h))
+            if poisson_prob_per_section.max().max() < 1E-5:
+                # Probability has become insignificant. Break loop.
+                print(f'NR model: Poisson probability loop broken after P(x={n})')
+                break
+        nr_li_self_interaction = nr_li_si_per_section.sum()
 
-        # Self interaction with departing traffic. Same as crossing, but in xz-plane.
-        # TODO: Add depth (equivalent to altitude layers).
-        alt_to_climb = self.cruise_alt - self.departure_alt
-        time_to_climb = alt_to_climb / self.vs
-        n_inst_departing = self.departure_rate * time_to_climb
-        n_inst_cruise = self.n_inst - n_inst_departing
-        xz_area = alt_to_climb * np.sqrt(self.urban_grid.area)
-        # c_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.vs * self.t_l / xz_area
-        c_inst_nr_departing = 0 * n_inst_departing
+        # Crossing conflicts and LoS.
+        # Define areas.
+        los_area = np.pi * np.power(self.s_h, 2)
+        conf_vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
+        conf_area = 2 * self.s_h * conf_vrel * self.t_l
+        border_isct_area = 2 * np.power(self.urban_grid.grid_height, 2)
+        regular_isct_area = 4 * np.power(self.urban_grid.grid_height, 2)
 
-        c_inst_nr = c_inst_nr_crossing + c_inst_nr_departing
+        # Obtain headings per intersection.
+        from_idx = nr_ni_per_section.index.get_level_values('from')
+        via_idx = nr_ni_per_section.index.get_level_values('via')
+        hdg = (self.urban_grid.flow_df['from_hdg']
+               .groupby(['from', 'via']).mean()
+               .reindex_like(nr_ni_per_section))
 
-        # LoS ---------
-        # los_inst_nr_crossing = (4 * np.power(self.n_inst / 4, 2) * np.pi * np.power(self.s_h, 2)
-        #                         / self.urban_grid.area)
-        los_inst_nr_crossing = (np.power(self.n_inst, 2) * np.pi * np.power(self.s_h, 2)
-                                / self.urban_grid.area)
+        # Loop over all intersections.
+        nr_li_crossing = 0. * nr_li_self_interaction.copy()
+        nr_ci_crossing = 0. * nr_li_self_interaction.copy()
+        for isct in self.urban_grid.isct_nodes:
+            isct_ni = nr_ni_per_section[(from_idx == isct) | (via_idx == isct)].copy()
+            isct_hdg = hdg[(from_idx == isct) | (via_idx == isct)].copy()
+            ni_per_hdg = (isct_ni.join(isct_hdg)
+                          .groupby('from_hdg').sum())
+            if len(ni_per_hdg) != 2:
+                # Sanity check.
+                raise NotImplementedError(f'Intersections with {len(ni_per_hdg)} headings not implemented.')
+            if len(isct_ni) == 2:
+                # Corner node, skip.
+                continue
+            elif len(isct_ni) == 3:
+                # Border intersection node.
+                nr_li_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * los_area / border_isct_area
+                nr_ci_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * conf_area / border_isct_area
+            elif len(isct_ni) == 4:
+                # Regular intersection node.
+                nr_li_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * los_area / regular_isct_area
+                nr_ci_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * conf_area / regular_isct_area
+            else:
+                # Sanity check.
+                raise NotImplementedError(f'Intersections with {len(isct_ni)} segments not implemented.')
 
+        # Sum self interaction and crossing conflicts / LoS.
+        nr_li = nr_li_crossing + nr_li_self_interaction
+        # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
+        nr_ci = nr_ci_crossing
 
-        # Self interaction with departing traffic.
-        # TODO: Add depth (equivalent to altitude layers).
-        # los_inst_nr_departing = n_inst_departing * n_inst_cruise * self.s_v * self.s_h / xz_area
-        los_inst_nr_departing = 0 * n_inst_departing
-
-        los_inst_nr = los_inst_nr_crossing + los_inst_nr_departing
-
-        return c_inst_nr, los_inst_nr
+        return nr_ci, nr_li
 
     def determine_flow_rates(self) -> pd.DataFrame:
         flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
