@@ -82,7 +82,7 @@ class AnalyticalModel:
 
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
         print('Calculating analytical NR model...')
-        # Self interaction (LoS only).
+        # Self interaction (LoS only). TODO: Include departing traffic?
         nr_ni_per_section = self.urban_grid.grid_height / self.speed * self.from_flow_rates.copy()
         nr_li_si_per_section = 0. * nr_ni_per_section.copy()
         for n in range(2, 100):
@@ -236,26 +236,13 @@ class AnalyticalModel:
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         print('Calculating analytical WR model...')
-        # Initiate arrays.
-        ni = pd.DataFrame({0: self.n_inst}, index=self.n_inst)
-        mean_delay = pd.DataFrame().reindex_like(ni)
-        mean_duration = pd.DataFrame(np.ones(self.n_inst.shape) * self.avg_duration, index=self.n_inst)
-        mean_v = pd.DataFrame(np.ones(self.n_inst.shape) * self.speed, index=self.n_inst)
-
-        # Calculate nr case (as check).
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
-        nr_duration_per_section = pd.DataFrame(self.urban_grid.grid_height / self.speed,
-                                               index=self.delays.index, columns=self.delays.columns)
-        nr_duration_per_section = nr_duration_per_section[
-            nr_duration_per_section.index.get_level_values('from') != 'departure']
-        nr_v_per_section = self.urban_grid.grid_height / nr_duration_per_section
-        nr_separation_per_section = nr_v_per_section / self.from_flow_rates
-        nr_ni_per_section = self.urban_grid.grid_height / nr_separation_per_section
-        nr_ni = nr_ni_per_section.sum() + self.n_inst_da
-        nr_mean_v = (nr_v_per_section * nr_ni_per_section.loc[nr_v_per_section.index]).sum() / nr_ni_per_section.sum()
 
-        # Calculate wr case.
-        wr_duration_per_section = self.delays.loc[nr_duration_per_section.index] + nr_duration_per_section
+        nr_duration_per_section = self.urban_grid.grid_height / self.speed
+        wr_duration_per_section = self.delays.copy() + nr_duration_per_section
+        wr_duration_per_section = wr_duration_per_section[
+            wr_duration_per_section.index.get_level_values('from') != 'departure'
+        ]
         wr_v_per_section = self.urban_grid.grid_height / wr_duration_per_section
         wr_separation_per_section = wr_v_per_section / self.from_flow_rates
         wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
