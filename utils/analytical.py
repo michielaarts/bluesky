@@ -23,6 +23,20 @@ class AnalyticalModel:
             urban_grid: UrbanGrid, max_value: float, accuracy: int, duration: Tuple[float, float, float],
             speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS,
     ):
+        """
+        Class for the analytical conflict count and delay models.
+
+        :param urban_grid: UrbanGrid
+        :param max_value: maximum inst. no. of aircraft to model for
+        :param accuracy: number of evaluations modelled between 0 and max_value
+        :param duration: simulation duration (build-up, logging, cool-down) [s, s, s]
+        :param speed: autopilot speed of aircraft [m/s]
+        :param s_h: horizontal separation distance [m]
+        :param s_v: vertical separation distance [ft]
+        :param t_l: look-ahead time [s]
+        :param vs: vertical speed of aircraft [m/s] (optional)
+        """
+        # Parse inputs.
         self.urban_grid = urban_grid
         self.max_value = max_value
         self.accuracy = accuracy
@@ -58,10 +72,10 @@ class AnalyticalModel:
             (self.flow_proportion.index.get_level_values('from') == 'departure')
             | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
 
-        # NR conflict count Model.
+        # NR conflict count model.
         self.c_inst_nr, self.los_inst_nr = self.nr_model()
 
-        # WR delay Model.
+        # WR delay model.
         self.delays = self.delay_model(self.from_flow_rates)
         self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr = self.wr_model()
 
@@ -151,6 +165,11 @@ class AnalyticalModel:
         return nr_ci, nr_li
 
     def determine_flow_rates(self) -> pd.DataFrame:
+        """
+        Determines flow rates through the UrbanGrid for each n_inst.
+
+        :return: Flow rates dataframe
+        """
         flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
         for ni in self.n_inst:
             passage_rate = ni * self.speed / self.urban_grid.grid_height
@@ -158,6 +177,12 @@ class AnalyticalModel:
         return flow_rates
 
     def determine_from_flow_rates(self, flow_df) -> pd.DataFrame:
+        """
+        Groups flow rates based on from and via nodes, to obtain the 'from flow'-rates.
+
+        :param flow_df: Flow rates dataframe.
+        :return: From flow rates dataframe
+        """
         from_flows = flow_df.groupby(['from', 'via']).sum()
 
         departure_flows = pd.DataFrame(
@@ -172,9 +197,10 @@ class AnalyticalModel:
 
     def expand_flow_proportion(self) -> pd.Series:
         """
+        Extracts the flow proportion from the UrbanGrid and adds the departure and arrival proportions.
         Sum of flow proportion should be 1.
 
-        :return:
+        :return: Flow proportion dataframe
         """
         from_proportion = self.urban_grid.flow_df['flow_distribution'].groupby(['from', 'via']).sum()
         departure_proportion = self.urban_grid.flow_df['origin_distribution'].mean()
@@ -272,7 +298,7 @@ class AnalyticalModel:
         if exp_inst.shape != exp_total.shape:
             raise ValueError('Inputs must be of same size')
         t_mean = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
-                         x0=2., disp=False)[0]
+                          x0=2., disp=False)[0]
         return t_mean
 
     @staticmethod
