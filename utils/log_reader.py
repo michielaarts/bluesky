@@ -252,7 +252,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_h = all_s_h[0]
         s_v = all_s_v[0]
         t_l = all_t_l[0]
-    ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=25,
+    ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
@@ -268,7 +268,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     # Initialize plots.
     conf_fig, conf_axs = plt.subplots(2, 3, num=1)
     plt.get_current_fig_manager().window.showMaximized()
-    flst_fig, flst_axs = plt.subplots(1, 3, num=2)
+    flst_fig, flst_axs = plt.subplots(2, 2, num=2)
     plt.get_current_fig_manager().window.showMaximized()
     conf_axs = conf_axs.flatten()
     flst_axs = flst_axs.flatten()
@@ -301,6 +301,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         for key in data[reso].keys():
             data[reso][key] = np.array(data[reso][key])
         data[reso]['mean_v'] = data[reso]['dist3D'] / data[reso]['flight_time']
+        data[reso]['flow_rate'] = data[reso]['ni_ac'] * data[reso]['mean_v']
         data[reso]['stable_filter'] = data[reso]['stable'] & data[reso]['cooled_down']
         # Set all unstable data to zero.
         for key in data[reso].keys():
@@ -327,6 +328,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter], color=color, label=reso)
         flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter], color=color, label=reso)
         flst_axs[2].scatter(x[stable_filter], data[reso]['mean_v'][stable_filter], color=color, label=reso)
+        flst_axs[3].scatter(x[stable_filter], data[reso]['flow_rate'][stable_filter], color=color, label=reso)
 
     # Plot unstable values.
     stable_filter = data['WR']['stable_filter']
@@ -350,6 +352,8 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
                      '*', color=color, label=f'{reso}, unstable')
     flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
+                     '*', color=color, label=f'{reso}, unstable')
+    flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
                      '*', color=color, label=f'{reso}, unstable')
 
     # Fit and plot analytical model derivatives.
@@ -388,7 +392,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     # flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
     flst_axs[0].set_ylabel('Mean flight time [s]')
-    flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.mean_flight_time,
+    flst_axs[0].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.mean_flight_time_nr,
                      color='blue', label='NR Model')
     flst_axs[0].plot(ana_model.n_inst, ana_model.mean_flight_time_wr, color='red', label='WR Model')
     flst_axs[1].set_ylabel('Mean 2D distance [m]')
@@ -398,6 +402,9 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     flst_axs[2].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.speed,
                      color='blue', label='NR Model')
     flst_axs[2].plot(ana_model.n_inst, ana_model.mean_v_wr, color='red', label='WR Model')
+    flst_axs[3].set_ylabel(r'Flow rate [veh$\cdot$m/s]')
+    flst_axs[3].plot(ana_model.n_inst, ana_model.n_inst * ana_model.speed, color='blue', label='NR Model')
+    flst_axs[3].plot(ana_model.n_inst, ana_model.flow_rate_wr, color='red', label='WR Model')
     for ax in flst_axs:
         ax.set_xlabel('NR Inst. no. of aircraft [-]')
         # ax.set_ylim(flst_ylim[ax])
@@ -406,9 +413,9 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     return [conf_fig, flst_fig], data
 
 
-def save_figures(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
+def save_figures(fig_list: List[plt.Figure], name: str, output_dir: Path = OUTPUT_FOLDER) -> None:
     """
-    Saves the figures
+    Saves the figures to the output directory.
 
     :param fig_list: List with conf_fig and flst_fig
     :param name: save name
@@ -423,7 +430,7 @@ def save_figures(fig_list: List[plt.figure], name: str, output_dir: Path = OUTPU
 
 def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.DataFrame:
     """
-    Saves the data to a csv.
+    Converts data to a dataframe and saves to a csv.
 
     :param data: data dict
     :param name: save name

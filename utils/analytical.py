@@ -13,7 +13,7 @@ from pathlib import Path
 from scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm, ft
 
-# VS depends on the steepness used in autopilot.py, adjust accordingly.
+# Vertical speed depends on the steepness used in bluesky/traffic/autopilot.py, adjust accordingly.
 VS = 194. * fpm
 
 
@@ -49,7 +49,7 @@ class AnalyticalModel:
 
         self.cruise_alt = 50. * ft  # m
         self.departure_alt = 0. * ft  # m
-        self.mean_flight_time = self.urban_grid.mean_route_length / self.speed
+        self.mean_flight_time_nr = self.urban_grid.mean_route_length / self.speed
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
@@ -60,10 +60,10 @@ class AnalyticalModel:
         self.n_inst = np.linspace(10, self.max_value, self.accuracy)
 
         # Determine flow proportions and rates.
-        self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time
+        self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
         self.flow_proportion = self.expand_flow_proportion()
         self.flow_rates = self.determine_flow_rates()  # veh / s
-        self.departure_rate = self.n_inst / self.mean_flight_time  # veh / s
+        self.departure_rate = self.n_inst / self.mean_flight_time_nr  # veh / s
         self.arrival_rate = self.departure_rate  # By definition, for a stable system
         self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)  # veh / s
 
@@ -77,7 +77,7 @@ class AnalyticalModel:
 
         # WR delay model.
         self.delays = self.delay_model(self.from_flow_rates)
-        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr = self.wr_model()
+        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr = self.wr_model()
 
         # Fitted variables.
         self.c_inst_wr_fitted = None
@@ -98,7 +98,7 @@ class AnalyticalModel:
         """
         The conflict count model without conflict resolution.
         Calculates the instantaneous number of conflicts and losses of separation,
-         based on the flows through the urban grid.
+        based on the flows through the urban grid.
 
         :return: (Inst. no. of conflicts, Inst. no. of LoS)
         """
@@ -262,13 +262,14 @@ class AnalyticalModel:
         delays[delays.isna()] = 0
         return delays
 
-    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        The WR delay model. Calculates the mean velocity, instantaneous number of aircraft,
-         and the mean flight time of the flows through an urban grid.
+        The delay model with conflict resolution.
+        Calculates the mean velocity, instantaneous number of aircraft,
+        and the mean flight time of the flows through an urban grid.
         If the delay model predicts an unstable system, the values are set to zero.
 
-        :return: (Mean velocity, No. Inst. A/C, Mean flight time)
+        :return: (Mean velocity, No. Inst. A/C, Mean flight time, Flow rate)
         """
         print('Calculating analytical WR model...')
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
@@ -290,8 +291,9 @@ class AnalyticalModel:
         wr_mean_v[unstable_filter] = 0
         wr_ni[unstable_filter] = 0
         wr_mean_flight_time[unstable_filter] = 0
+        wr_flow_rate = wr_mean_v * wr_ni
 
-        return wr_mean_v, wr_ni, wr_mean_flight_time
+        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate
 
     def _fit_mean_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:
         """ Least squares fit of the mean conflict or los duration """
