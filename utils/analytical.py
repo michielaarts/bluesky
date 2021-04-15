@@ -85,6 +85,7 @@ class AnalyticalModel:
         self.mean_conflict_duration_wr = None  # s
         self.c_total_nr = None
         self.c_total_wr = None
+        self.c_total_wr_fitted = None
         self.false_conflict_ratio = None
         self.resolve_ratio = None
         self.los_total_nr = None
@@ -342,13 +343,14 @@ class AnalyticalModel:
         self.resolve_ratio = self._fit_conflict_los_ratio(data['WR']['ntotal_conf'], data['WR']['ntotal_los'])
 
         self.c_total_nr = self.c_inst_nr * self.duration[1] / self.mean_conflict_duration_nr
-        self.c_total_wr = self.c_inst_wr_fitted * self.duration[1] / self.mean_conflict_duration_wr
+        self.c_total_wr = self.wr_conflict_model()
+        self.c_total_wr_fitted = self.c_inst_wr_fitted * self.duration[1] / self.mean_conflict_duration_wr
         self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
         self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
         self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
         self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
 
-    def wr_conflict_model(self):
+    def wr_camda_model(self):
         """ Based on inst. no. of aircraft and CAMDA model """
         nr_fit = opt.fmin(lambda a: np.nanmean(np.power(4 * a * np.power(self.n_inst / 4, 2) - self.c_inst_nr, 2)),
                           x0=1, disp=False)[0]
@@ -358,25 +360,25 @@ class AnalyticalModel:
         c_total_wr = c_1_wr * self.n_total
         return c_total_wr
 
-    def wr_conflict_model2(self):
+    def wr_conflict_model(self):
         """ Based on local flow rates and delay """
         vehicle_delay_per_second = self.delays * self.from_flow_rates
         vd_via_idx = vehicle_delay_per_second.index.get_level_values('via')
         ff_via_idx = self.from_flow_rates.index.get_level_values('via')
         additional_conflicts_per_second = pd.Series(0, index=self.n_inst)
-        for isct in self.urban_grid.isct_nodes:
+        for node in self.urban_grid.all_nodes:
             # Loop over all intersections.
-            isct_delays_per_second = vehicle_delay_per_second[vd_via_idx == isct].copy()
-            isct_from_flows_reversed = self.from_flow_rates[ff_via_idx == isct].copy().iloc[-1::-1]
-            if len(isct_delays_per_second) == 1:
+            node_delays_per_second = vehicle_delay_per_second[vd_via_idx == node].copy()
+            node_from_flows_reversed = self.from_flow_rates[ff_via_idx == node].copy().iloc[-1::-1]
+            if len(node_delays_per_second) == 1:
                 # Corner intersection, skip.
                 continue
-            elif len(isct_delays_per_second) == 2:
+            elif len(node_delays_per_second) == 2:
                 # Regular intersection.
-                additional_conflicts_per_second += (isct_delays_per_second * isct_from_flows_reversed.values).sum()
+                additional_conflicts_per_second += (node_delays_per_second * node_from_flows_reversed.values).sum()
             else:
                 # Sanity check.
-                raise NotImplementedError(f'Intersections with {len(isct_delays_per_second)} headings not implemented.')
+                raise NotImplementedError(f'Intersections with {len(node_delays_per_second)} headings not implemented.')
 
         c_total_wr = self.c_total_nr + additional_conflicts_per_second * self.duration[1]
         return c_total_wr
