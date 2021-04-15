@@ -378,7 +378,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
-    conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue', linestyle='--',
+    conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue',
                      label=rf'NR Model, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr, color='red', label='WR Model')
     # conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr_fitted, color='coral', linestyle='--',
@@ -505,7 +505,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_1204_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_quicklog_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
@@ -515,6 +515,6 @@ if __name__ == '__main__':
 
     grid, analytical = load_analytical_model(res)
     figs, data_dict = plot_result(res, analytical)
-    # save_figures(figs, res['name'])
+    save_figures(figs, res['name'])
     data_df = save_data(data_dict, res['name'])
     figs.append(camda_assumption(data_dict, analytical))

@@ -232,6 +232,7 @@ class ScenarioGenerator:
                 f.write('# Set dt of FMS and ASAS to 0\n')
                 f.write(f'{self.tim2txt(0)}>DT FMS 0.001\n')
                 f.write(f'{self.tim2txt(0)}>DT ASAS 0.001\n\n')
+                f.write(f'{self.tim2txt(0)}>DT AREA 0.001\n\n')
 
                 # Create aircraft.
                 f.write('# Create aircraft.\n')
@@ -315,14 +316,14 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([15, 30, 45, 50, 55, 60, 65, 70, 75])
-    REPETITIONS = 5
+    N_INST = np.array([15, 30, 45, 55, 65, 75])
+    REPETITIONS = 2
 
     BUILD_UP_DURATION = 900.  # s
     EXPERIMENT_DURATION = 2700.  # s
     COOL_DOWN_DURATION = 900.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = '1204'
+    PREFIX = 'quicklog'
 
     N_ROWS = 7
     N_COLS = N_ROWS

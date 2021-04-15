@@ -57,7 +57,7 @@ class AnalyticalModel:
             raise NotImplementedError('Analytical model can only be determined for an equal grid size')
 
         # Initiate arrays.
-        self.n_inst = np.linspace(10, self.max_value, self.accuracy)
+        self.n_inst = np.linspace(1, self.max_value, self.accuracy)
 
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
@@ -369,13 +369,15 @@ class AnalyticalModel:
         for node in self.urban_grid.all_nodes:
             # Loop over all intersections.
             node_delays_per_second = vehicle_delay_per_second[vd_via_idx == node].copy()
-            node_from_flows_reversed = self.from_flow_rates[ff_via_idx == node].copy().iloc[-1::-1]
+            node_from_flows = self.from_flow_rates[ff_via_idx == node].copy()
+            node_from_flows_reversed = node_from_flows.copy().iloc[-1::-1]
             if len(node_delays_per_second) == 1:
                 # Corner intersection, skip.
                 continue
             elif len(node_delays_per_second) == 2:
                 # Regular intersection.
                 additional_conflicts_per_second += (node_delays_per_second * node_from_flows_reversed.values).sum()
+                additional_conflicts_per_second += (node_delays_per_second * node_from_flows.values).sum()
             else:
                 # Sanity check.
                 raise NotImplementedError(f'Intersections with {len(node_delays_per_second)} headings not implemented.')
