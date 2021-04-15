@@ -296,12 +296,16 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
             for flst_key in result[run]['flst'].keys():
                 data[reso][flst_key].append(result[run]['flst'][flst_key])
 
-    # Transform to arrays.
+    # Transform to arrays and extract derivatives.
     for reso in data.keys():
         for key in data[reso].keys():
             data[reso][key] = np.array(data[reso][key])
         data[reso]['mean_v'] = data[reso]['dist3D'] / data[reso]['flight_time']
         data[reso]['flow_rate'] = data[reso]['ni_ac'] * data[reso]['mean_v']
+        data[reso]['n1_conf'] = data[reso]['ntotal_conf'] / data[reso]['ntotal_ac']
+        data[reso]['n1_los'] = data[reso]['ntotal_los'] / data[reso]['ntotal_ac']
+        data[reso]['duration_conf'] = data[reso]['ni_conf'] * ana_model.duration[1] / data[reso]['ntotal_conf']
+        data[reso]['duration_los'] = data[reso]['ni_los'] * ana_model.duration[1] / data[reso]['ntotal_los']
         data[reso]['stable_filter'] = data[reso]['stable'] & data[reso]['cooled_down']
         # Set all unstable data to zero.
         for key in data[reso].keys():
@@ -328,7 +332,8 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter], color=color, label=reso)
         flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter], color=color, label=reso)
         flst_axs[2].scatter(x[stable_filter], data[reso]['mean_v'][stable_filter], color=color, label=reso)
-        flst_axs[3].scatter(x[stable_filter], data[reso]['flow_rate'][stable_filter], color=color, label=reso)
+        flst_axs[3].scatter(data[reso]['ni_ac'][stable_filter], data[reso]['flow_rate'][stable_filter],
+                            color=color, label=reso)
 
     # Plot unstable values.
     stable_filter = data['WR']['stable_filter']
@@ -358,6 +363,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     # Fit and plot analytical model derivatives.
     ana_model.fit_derivatives(data)
+    camda_model = ana_model.wr_conflict_model()
 
     # conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
@@ -369,10 +375,11 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
                      label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.mean_los_duration_nr:.1f}$s')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
                      label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.mean_los_duration_wr:.1f}$s')
-    conf_axs[2].set_ylabel('WR Inst. no. of aircraft')
+    conf_axs[2].set_ylabel('Inst. no. of aircraft')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
+    conf_axs[3].plot(ana_model.n_inst, camda_model, color='red', label='WR (CAMDA) Model')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='lightblue', linestyle='--',
                      label=rf'NR Fitted, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr, color='coral', linestyle='--',
@@ -404,12 +411,16 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     flst_axs[2].plot(ana_model.n_inst, ana_model.mean_v_wr, color='red', label='WR Model')
     flst_axs[3].set_ylabel(r'Flow rate [veh$\cdot$m/s]')
     flst_axs[3].plot(ana_model.n_inst, ana_model.n_inst * ana_model.speed, color='blue', label='NR Model')
-    flst_axs[3].plot(ana_model.n_inst, ana_model.flow_rate_wr, color='red', label='WR Model')
+    ni_wr = ana_model.n_inst_wr
+    ni_wr[ana_model.flow_rate_wr == 0] = max(ni_wr)
+    flst_axs[3].plot(ni_wr, ana_model.flow_rate_wr, color='red', label='WR Model')
     for ax in flst_axs:
         ax.set_xlabel('NR Inst. no. of aircraft [-]')
         # ax.set_ylim(flst_ylim[ax])
         ax.legend()
-
+    flst_axs[-1].set_xlabel('Inst. no. of aircraft [-]')
+    conf_fig.suptitle('CONFLOG')
+    flst_fig.suptitle('FLSTLOG')
     return [conf_fig, flst_fig], data
 
 
@@ -447,11 +458,52 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
     return df
 
 
+def camda_assumption(data: dict, ana_model: AnalyticalModel):
+    fig, axs = plt.subplots(2, 2, num=3)
+    axs = axs.flatten()
+    plt.get_current_fig_manager().window.showMaximized()
+    color = {'NR': 'blue', 'WR': 'red'}
+    c_total_wr = ana_model.wr_conflict_model()
+    c_1_nr = ana_model.c_total_nr / ana_model.n_total
+    c_1_wr = c_total_wr / ana_model.n_total
+    for reso in data.keys():
+        data[reso]['c1'] = data[reso]['ntotal_conf'] / data[reso]['ntotal_ac']
+        data[reso]['c1_dist'] = data[reso]['c1'] / data[reso]['dist3D']
+        data[reso]['c1_time'] = data[reso]['c1'] / data[reso]['flight_time']
+        axs[0].scatter(data[reso]['ni_ac'], data[reso]['c1_dist'], color=color[reso], label=reso)
+        axs[1].scatter(data[reso]['ni_ac'], data[reso]['c1_time'], color=color[reso], label=reso)
+        axs[2].scatter(data[reso]['ni_ac'], data[reso]['c1'], color=color[reso], label=reso)
+    axs[0].plot(ana_model.n_inst, c_1_nr / ana_model.urban_grid.mean_route_length,
+                color='blue', label='NR Model')
+    axs[0].plot(ana_model.n_inst_wr, c_1_wr / ana_model.urban_grid.mean_route_length,
+                color='red', label='WR (CAMDA) Model')
+    axs[1].plot(ana_model.n_inst, c_1_nr / ana_model.mean_flight_time_nr,
+                color='blue', label='NR Model')
+    axs[1].plot(ana_model.n_inst_wr, c_1_wr / ana_model.mean_flight_time_wr,
+                color='red', label='WR (CAMDA) Model')
+    axs[2].plot(ana_model.n_inst, c_1_nr, color='blue', label='NR Model')
+    axs[2].plot(ana_model.n_inst_wr, c_1_wr, color='red', label='WR (CAMDA) Model')
+    dep = data['WR']['ntotal_conf'] / data['NR']['ntotal_conf'] - 1
+    axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental')
+    ana_dep = c_total_wr / ana_model.c_total_nr - 1
+    axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Model')
+
+    for ax in axs:
+        ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.legend()
+    axs[0].set_ylabel('No. of conflicts per unit distance per aircraft [-]')
+    axs[1].set_ylabel('No. of conflicts per unit time per aircraft [-]')
+    axs[2].set_ylabel('No. of conflicts per aircraft [-]')
+    axs[3].set_ylabel('DEP [-]')
+    fig.suptitle('CAMDA Assumptions')
+    return fig
+
+
 if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_conflict_count_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_1204_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
@@ -461,5 +513,6 @@ if __name__ == '__main__':
 
     grid, analytical = load_analytical_model(res)
     figs, data_dict = plot_result(res, analytical)
-    save_figures(figs, res['name'])
+    # save_figures(figs, res['name'])
     data_df = save_data(data_dict, res['name'])
+    figs.append(camda_assumption(data_dict, analytical))

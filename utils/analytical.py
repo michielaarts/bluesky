@@ -348,6 +348,16 @@ class AnalyticalModel:
         self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
         self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
 
+    def wr_conflict_model(self):
+        """ Based on inst. no. of aircraft and CAMDA model """
+        nr_fit = opt.fmin(lambda a: np.nanmean(np.power(4 * a * np.power(self.n_inst / 4, 2) - self.c_inst_nr, 2)),
+                          x0=1, disp=False)[0]
+        c_total_wr_ni = 4 * nr_fit * np.power(self.n_inst_wr / 4, 2) * self.duration[1] / self.mean_conflict_duration_nr
+        c_1t = c_total_wr_ni / (self.n_total * self.mean_flight_time_nr)
+        c_1_wr = c_1t * self.mean_flight_time_wr
+        c_total_wr = c_1_wr * self.n_total
+        return c_total_wr
+
 
 if __name__ == '__main__':
     S_H = 50.  # m
@@ -356,7 +366,7 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../scenario/URBAN/Data/validation_urban_grid.pkl')
+    pkl_file = Path(r'../scenario/URBAN/Data/1204_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
