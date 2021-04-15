@@ -358,6 +358,29 @@ class AnalyticalModel:
         c_total_wr = c_1_wr * self.n_total
         return c_total_wr
 
+    def wr_conflict_model2(self):
+        """ Based on local flow rates and delay """
+        vehicle_delay_per_second = self.delays * self.from_flow_rates
+        vd_via_idx = vehicle_delay_per_second.index.get_level_values('via')
+        ff_via_idx = self.from_flow_rates.index.get_level_values('via')
+        additional_conflicts_per_second = pd.Series(0, index=self.n_inst)
+        for isct in self.urban_grid.isct_nodes:
+            # Loop over all intersections.
+            isct_delays_per_second = vehicle_delay_per_second[vd_via_idx == isct].copy()
+            isct_from_flows_reversed = self.from_flow_rates[ff_via_idx == isct].copy().iloc[-1::-1]
+            if len(isct_delays_per_second) == 1:
+                # Corner intersection, skip.
+                continue
+            elif len(isct_delays_per_second) == 2:
+                # Regular intersection.
+                additional_conflicts_per_second += (isct_delays_per_second * isct_from_flows_reversed.values).sum()
+            else:
+                # Sanity check.
+                raise NotImplementedError(f'Intersections with {len(isct_delays_per_second)} headings not implemented.')
+
+        c_total_wr = self.c_total_nr + additional_conflicts_per_second * self.duration[1]
+        return c_total_wr
+
 
 if __name__ == '__main__':
     S_H = 50.  # m

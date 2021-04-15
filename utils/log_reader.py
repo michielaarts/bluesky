@@ -363,7 +363,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     # Fit and plot analytical model derivatives.
     ana_model.fit_derivatives(data)
-    camda_model = ana_model.wr_conflict_model()
+    flow_model = ana_model.wr_conflict_model2()
 
     # conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
@@ -379,7 +379,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
-    conf_axs[3].plot(ana_model.n_inst, camda_model, color='red', label='WR (CAMDA) Model')
+    conf_axs[3].plot(ana_model.n_inst, flow_model, color='red', label='WR Model')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='lightblue', linestyle='--',
                      label=rf'NR Fitted, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr, color='coral', linestyle='--',
@@ -463,7 +463,7 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
     axs = axs.flatten()
     plt.get_current_fig_manager().window.showMaximized()
     color = {'NR': 'blue', 'WR': 'red'}
-    c_total_wr = ana_model.wr_conflict_model()
+    c_total_wr = ana_model.wr_conflict_model2()
     c_1_nr = ana_model.c_total_nr / ana_model.n_total
     c_1_wr = c_total_wr / ana_model.n_total
     for reso in data.keys():
@@ -476,17 +476,17 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
     axs[0].plot(ana_model.n_inst, c_1_nr / ana_model.urban_grid.mean_route_length,
                 color='blue', label='NR Model')
     axs[0].plot(ana_model.n_inst_wr, c_1_wr / ana_model.urban_grid.mean_route_length,
-                color='red', label='WR (CAMDA) Model')
+                color='red', label='WR Model')
     axs[1].plot(ana_model.n_inst, c_1_nr / ana_model.mean_flight_time_nr,
                 color='blue', label='NR Model')
     axs[1].plot(ana_model.n_inst_wr, c_1_wr / ana_model.mean_flight_time_wr,
-                color='red', label='WR (CAMDA) Model')
+                color='red', label='WR Model')
     axs[2].plot(ana_model.n_inst, c_1_nr, color='blue', label='NR Model')
-    axs[2].plot(ana_model.n_inst_wr, c_1_wr, color='red', label='WR (CAMDA) Model')
+    axs[2].plot(ana_model.n_inst_wr, c_1_wr, color='red', label='WR Model')
     dep = data['WR']['ntotal_conf'] / data['NR']['ntotal_conf'] - 1
     axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental')
     ana_dep = c_total_wr / ana_model.c_total_nr - 1
-    axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Model')
+    axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Flow Rate Model')
 
     for ax in axs:
         ax.set_xlabel('Inst. no. of aircraft [-]')
