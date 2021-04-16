@@ -3,11 +3,12 @@ The analytical model class for an urban grid network.
 
 Created by Michiel Aarts, March 2021
 """
-from typing import Tuple
-import scipy.optimize as opt
 import numpy as np
 import pandas as pd
 import pickle as pkl
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+from typing import Tuple
 from plugins.urban import UrbanGrid
 from pathlib import Path
 from scn_reader import plot_flow_rates
@@ -257,6 +258,9 @@ class AnalyticalModel:
                 stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
                 stochastic_delay = total_stochastic_delay - stochastic_flow_delay
 
+                # If intersection unstable, set delay very large.
+                stochastic_delay[total_y >= 1] = 1E5
+
                 # Add to delays df.
                 delays.loc[(from_nodes[i], node)] = general_delay + stochastic_delay
 
@@ -386,6 +390,19 @@ class AnalyticalModel:
         return c_total_wr
 
 
+def plot_mfd(model: AnalyticalModel) -> None:
+    """
+    Plots the MFD of the provided analytical model.
+    Useful when creating a scenario, to see whether the
+    instantaneous numbers of aircraft without resolution
+    are within the stable range.
+    """
+    plt.figure()
+    plt.plot(model.n_inst, model.flow_rate_wr)
+    plt.xlabel('No. of inst. aircraft NR')
+    plt.ylabel('Flow rate [veh m / s]')
+
+
 if __name__ == '__main__':
     S_H = 50.  # m
     S_V = 25.  # ft
@@ -393,11 +410,13 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../scenario/URBAN/Data/1204_urban_grid.pkl')
+    pkl_file = Path(r'../scenario/URBAN/Data/medium_ql_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
     plot_flow_rates(grid.flow_df)
 
-    ana_model = AnalyticalModel(grid, max_value=300, accuracy=20,
+    ana_model = AnalyticalModel(grid, max_value=300, accuracy=50,
                                 duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+
+    plot_mfd(ana_model)

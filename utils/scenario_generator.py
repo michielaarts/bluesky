@@ -316,16 +316,16 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([15, 30, 45, 55, 65, 75])
+    N_INST = np.array([10, 35, 60, 85, 110])
     REPETITIONS = 2
 
     BUILD_UP_DURATION = 900.  # s
     EXPERIMENT_DURATION = 2700.  # s
     COOL_DOWN_DURATION = 900.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'quicklog'
+    PREFIX = 'medium_ql'
 
-    N_ROWS = 7
+    N_ROWS = 11
     N_COLS = N_ROWS
     GRID_HEIGHT = 200.  # m
     GRID_WIDTH = GRID_HEIGHT
