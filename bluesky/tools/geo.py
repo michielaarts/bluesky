@@ -1,9 +1,9 @@
 """ This module defines a set of standard geographic functions and constants for
     easy use in BlueSky. """
-from pathlib import Path
-
 import numpy as np
 from math import *
+from pathlib import Path
+
 # Constants
 nm  = 1852.  # m       1 nautical mile
 
