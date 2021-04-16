@@ -290,8 +290,8 @@ class Area(Entity):
                 # Initiate the loggers.
                 self.flst_log.start(prefix=self.log_prefix)
                 self.conf_log.start(prefix=self.log_prefix)
-                self.flst_log.writeline(flst_vars)
-                self.conf_log.writeline(conf_vars)
+                self.flst_log.write(flst_vars)
+                self.conf_log.write(conf_vars)
 
                 return True, f'{msgname} is set to {args[0]}'
             elif args[0][:2] == 'OF':
@@ -317,8 +317,8 @@ class Area(Entity):
             # Initiate the loggers.
             self.flst_log.start(prefix=self.log_prefix)
             self.conf_log.start(prefix=self.log_prefix)
-            self.flst_log.writeline(flst_vars)
-            self.conf_log.writeline(conf_vars)
+            self.flst_log.write(flst_vars)
+            self.conf_log.write(conf_vars)
 
             return True, f'{msgname} is ON. Area name is: {self.exp_area}'
         else:

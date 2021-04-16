@@ -119,7 +119,7 @@ class CSVLogger:
         }
         stack.append_commands(stackcmd)
 
-    def writeline(self, line):
+    def write(self, line):
         self.file.write(bytearray(line, 'ascii'))
 
     def setheader(self, header):
@@ -203,6 +203,7 @@ class CSVLogger:
     def reset(self):
         self.dt = self.default_dt
         self.tlog = 0.0
+        self.fname = None
         if self.file:
             self.file.close()
             self.file = None
