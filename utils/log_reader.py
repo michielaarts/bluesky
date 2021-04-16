@@ -1,11 +1,10 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
-import warnings
-import re
-from typing import List, Tuple
 import pickle as pkl
+import re
+from pathlib import Path
+from typing import List, Tuple
 from tkinter import Tk, filedialog
 from analytical import AnalyticalModel
 from plugins.urban import UrbanGrid
@@ -25,7 +24,7 @@ def process_batch_file(filename: str) -> List[str]:
     """
     filepath = Path(filename)
     if not filepath.is_file():
-        warnings.warn(f'File {filename} does not exist!')
+        print(f'WARNING: File {filename} does not exist!')
         return []
 
     with open(filepath, 'r') as f:
@@ -49,16 +48,20 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
     :param process_wr: Also process with resolution case
     :return: result dict
     """
-    # Load SCN file.
+    # Load scenario file.
     tk_root = Tk()
-    scn_file = filedialog.askopenfilename(initialdir=scn_folder, title='Select a batch or scn file',
+    scn_file = filedialog.askopenfilename(initialdir=scn_folder, title='Select a batch file',
                                           filetypes=[('scenario', '*.scn')])
-    scenario_name = re.findall('.*(batch_.*).scn', scn_file)[0]
+    if scn_file == '':
+        # Loading cancelled.
+        raise RuntimeError('No file selected. Please select a batch file.')
 
     # Check if batch file.
-    result = {'name': scenario_name}
-    all_scn_names = []
     if 'batch' in scn_file:
+        scenario_name = re.findall('.*(batch_.*).scn', scn_file)[0]
+        result = {'name': scenario_name}
+        all_scn_names = []
+
         pcall_files = process_batch_file(scn_file)
         reso_cases = ['NR']
         if process_wr:
@@ -77,12 +80,14 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
                         elif 'FLSTLOG' in log:
                             result[scn_name]['flstlogfile'] = Path(log)
                         else:
-                            raise ValueError('Select flstlog or conflogs')
+                            print(f'WARNING: Non-FLST- or CONFLOG file found: {log}!\n'
+                                  f'         Skipping this file.')
     else:
-        raise NotImplementedError('Non-batch files not yet implemented')
+        raise RuntimeError('Non-batch file selected. Please select a batch file')
     tk_root.destroy()
 
-    pop_runs = []
+    # Process log files.
+    pop_runs = set()
     for run in result.keys():
         if run == 'name':
             continue
@@ -96,18 +101,17 @@ def create_result_dict(scn_folder: Path = SCN_FOLDER, output_folder: Path = OUTP
                                                  comment='#', skipinitialspace=True)
         else:
             print(f'Could not find conflogfile for scn {run}')
-            pop_runs.append(run)
+            pop_runs.add(run)
 
         if 'flstlogfile' in result[run].keys():
             result[run]['flstlog'] = pd.read_csv(result[run]['flstlogfile'],
                                                  comment='#', skipinitialspace=True)
         else:
             print(f'Could not find flstlogfile for scn {run}')
-            pop_runs.append(run)
+            pop_runs.add(run)
 
-    for run in np.unique(pop_runs):
-        # Pop run from result dict.
-        result.pop(run)
+    # Pop runs that were not found.
+    [result.pop(run) for run in pop_runs]
     return result
 
 
@@ -167,7 +171,7 @@ def process_result(result: dict) -> dict:
             result[run]['flst'], result[run]['ac'] = process_flstlog(result[run]['flstlog'],
                                                                      logging_start, logging_end)
         else:
-            # WR case.
+            # WR case. Note: only works if NR case is processed as well.
             nr_run = 'NR_' + run[3:]
             result[run]['ac'] = result[nr_run]['ac']
             result[run]['flst'], _ = process_flstlog(result[run]['flstlog'],
@@ -216,7 +220,7 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
     :return: Tuple with [flst dict, list of ac extracted]
     """
     if ac is not None:
-        # WR case.
+        # WR case. Note: only works if NR case is processed as well.
         logging_df = flst_df[flst_df['callsign'].isin(ac)]
         flst = logging_df[['flight_time', 'dist2D', 'dist3D', 'work_done', 'tas']].mean().to_dict()
         flst['num_ac'] = len(ac)
@@ -273,7 +277,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     conf_axs = conf_axs.flatten()
     flst_axs = flst_axs.flatten()
 
-    # Extract data.
+    # Extract experimental data.
     data = {}
     for run in result.keys():
         if run == 'name':
@@ -312,7 +316,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
             if key != 'stable_filter':
                 data[reso][key] = np.where(data[reso]['stable_filter'], data[reso][key], 0)
 
-    # Plot stable values.
+    # Plot stable experimental values.
     x = data['NR']['ni_ac']
     for reso in data.keys():
         if reso == 'NR':
@@ -335,7 +339,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         flst_axs[3].scatter(data[reso]['ni_ac'][stable_filter], data[reso]['flow_rate'][stable_filter],
                             color=color, label=reso)
 
-    # Plot unstable values.
+    # Plot unstable experimental values.
     stable_filter = data['WR']['stable_filter']
     color = 'red'
     reso = 'WR'
@@ -361,10 +365,10 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
                      '*', color=color, label=f'{reso}, unstable')
 
-    # Fit and plot analytical model derivatives.
+    # Fit and plot analytical model (incl. derivatives).
     ana_model.fit_derivatives(data)
 
-    # conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
+    conf_ylim = {ax: ax.get_ylim() for ax in conf_axs}
     conf_axs[0].set_ylabel('Inst. no. of conflicts [-]')
     conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_nr, color='blue', label='NR Model')
     # conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
@@ -393,7 +397,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     for ax in conf_axs:
         ax.set_xlabel('NR Inst. no. of aircraft [-]')
-        # ax.set_ylim(conf_ylim[ax])
+        ax.set_ylim([conf_ylim[ax][0], conf_ylim[ax][1] * 1.5])
         ax.legend()
 
     # flst_ylim = {ax: ax.get_ylim() for ax in flst_axs}
@@ -458,16 +462,18 @@ def save_data(data: dict, name: str, output_dir: Path = OUTPUT_FOLDER) -> pd.Dat
 
 
 def camda_assumption(data: dict, ana_model: AnalyticalModel):
+    """
+    Plots the assumptions made in Sunil et al. (2019) -
+    CAMDA: Capacity Assessment Method for Decentralized Air Traffic Control.
+    To investigate whether those assumptions work in urban airspace.
+    """
+    # Create figure.
     fig, axs = plt.subplots(2, 2, num=3)
     axs = axs.flatten()
     plt.get_current_fig_manager().window.showMaximized()
+
+    # Plot experimental values.
     color = {'NR': 'blue', 'WR': 'red'}
-    c_total_wr = ana_model.wr_conflict_model()
-    c_1_nr = ana_model.c_total_nr / ana_model.n_total
-    c_1_wr = c_total_wr / ana_model.n_total
-    ni_wr = ana_model.n_inst_wr.copy()
-    ni_wr[ana_model.flow_rate_wr == 0] = max(ni_wr)
-    c_1_wr[ana_model.flow_rate_wr == 0] = 0
     for reso in data.keys():
         data[reso]['c1'] = data[reso]['ntotal_conf'] / data[reso]['ntotal_ac']
         data[reso]['c1_dist'] = data[reso]['c1'] / data[reso]['dist3D']
@@ -475,6 +481,18 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
         axs[0].scatter(data[reso]['ni_ac'], data[reso]['c1_dist'], color=color[reso], label=reso)
         axs[1].scatter(data[reso]['ni_ac'], data[reso]['c1_time'], color=color[reso], label=reso)
         axs[2].scatter(data[reso]['ni_ac'], data[reso]['c1'], color=color[reso], label=reso)
+    dep = data['WR']['ntotal_conf'] / data['NR']['ntotal_conf'] - 1
+    axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental')
+    ylim = {ax: ax.get_ylim() for ax in axs}
+
+    # Extract and plot analytical models.
+    c_total_wr = ana_model.wr_conflict_model()
+    c_1_nr = ana_model.c_total_nr / ana_model.n_total
+    c_1_wr = c_total_wr / ana_model.n_total
+    ni_wr = ana_model.n_inst_wr.copy()
+    ni_wr[ana_model.flow_rate_wr == 0] = max(ni_wr)
+    c_1_wr[ana_model.flow_rate_wr == 0] = 0
+
     axs[0].plot(ana_model.n_inst, c_1_nr / ana_model.urban_grid.mean_route_length,
                 color='blue', label='NR Model')
     axs[0].plot(ni_wr, c_1_wr / ana_model.urban_grid.mean_route_length,
@@ -485,13 +503,13 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
                 color='red', label='WR Model')
     axs[2].plot(ana_model.n_inst, c_1_nr, color='blue', label='NR Model')
     axs[2].plot(ni_wr, c_1_wr, color='red', label='WR Model')
-    dep = data['WR']['ntotal_conf'] / data['NR']['ntotal_conf'] - 1
-    axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental')
     ana_dep = c_total_wr / ana_model.c_total_nr - 1
     axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Flow Rate Model')
 
+    # Finish figure.
     for ax in axs:
         ax.set_xlabel('Inst. no. of aircraft [-]')
+        ax.set_ylim([-ylim[ax][1] / 10., ylim[ax][1] * 1.5])
         ax.legend()
     axs[0].set_ylabel('No. of conflicts per unit distance per aircraft [-]')
     axs[1].set_ylabel('No. of conflicts per unit time per aircraft [-]')
