@@ -191,8 +191,6 @@ class CSVLogger:
             # log the data to file
             np.savetxt(self.file, np.vstack(txtdata).T,
                        delimiter=',', newline='\n', fmt='%s')
-        else:
-            raise IOError(f'Tried to log {self.name} in a closed file')
 
     def start(self, prefix: str = ''):
         """ Start this logger. """
