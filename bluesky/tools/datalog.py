@@ -67,7 +67,7 @@ def reset():
         log.reset()
 
 
-def makeLogfileName(logname, prefix):
+def makeLogfileName(logname, prefix: str = ''):
     timestamp = datetime.now().strftime('%Y%m%d_%H-%M-%S')
     if prefix == '' or prefix.lower() == stack.get_scenname().lower():
         fname = "%s_%s_%s.log" % (logname, stack.get_scenname(), timestamp)
