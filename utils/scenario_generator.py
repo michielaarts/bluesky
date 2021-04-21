@@ -3,7 +3,6 @@ Scenario generator file for an orthogonal grid.
 
 Created by Michiel Aarts, March 2021
 """
-import time
 from plugins.urban import UrbanGrid
 import numpy as np
 import scipy.stats as stats
@@ -13,6 +12,10 @@ from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
 from scn_reader import plot_flow_rates
+
+# Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
+DEPARTURE_ALTITUDE = 0.  # ft
+CRUISE_ALTITUDE = 50.  # ft
 
 
 class ScenarioGenerator:
@@ -177,10 +180,6 @@ class ScenarioGenerator:
             tas = spd / kts
             duration = scn['duration']
 
-            # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
-            cruise_alt = 50.  # ft
-            departure_alt = 0.  # ft
-
             # Save data to .pkl file.
             pkl_file = f'{prefix}_N{n_inst:.0f}_R{rep:.0f}.pkl'
             with open(pkl_path / pkl_file, 'wb') as f:
@@ -250,11 +249,11 @@ class ScenarioGenerator:
                     # Write to .scn file.
                     f.write(f'# Creating aircraft no. {ac["id"]}\n')
                     f.write(f'{time_string}>CRE {callsign} {ac["ac_type"]} '
-                            f'{origin} {hdg} {departure_alt} {tas}\n')
+                            f'{origin} {hdg} {DEPARTURE_ALTITUDE} {tas}\n')
                     f.write(f'{time_string}>ORIG {callsign} {origin}\n')
                     f.write(f'{time_string}>DEST {callsign} {ac["destination"]}\n')
                     for wpt in ac["path"][1:-1]:
-                        f.write(f'{time_string}>ADDWPT {callsign} {wpt} {cruise_alt} {tas}\n')
+                        f.write(f'{time_string}>ADDWPT {callsign} {wpt} {CRUISE_ALTITUDE} {tas}\n')
                     f.write(f'{time_string}>LNAV {callsign} ON\n')
                     f.write(f'{time_string}>VNAV {callsign} ON\n')
                     f.write('\n')
@@ -325,7 +324,7 @@ if __name__ == '__main__':
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
     PREFIX = 'medium_ql'
 
-    N_ROWS = 11
+    N_ROWS = 7
     N_COLS = N_ROWS
     GRID_HEIGHT = 200.  # m
     GRID_WIDTH = GRID_HEIGHT

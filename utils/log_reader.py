@@ -504,7 +504,7 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
     axs[2].plot(ana_model.n_inst, c_1_nr, color='blue', label='NR Model')
     axs[2].plot(ni_wr, c_1_wr, color='red', label='WR Model')
     ana_dep = c_total_wr / ana_model.c_total_nr - 1
-    axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Flow Rate Model')
+    axs[3].plot(ana_model.n_inst, ana_dep, color='purple', label='Analytical Model')
 
     # Finish figure.
     for ax in axs:
