@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
 from analytical import AnalyticalModel
+from intersection_analytical import IntersectionAnalyticalModel
 from plugins.urban import UrbanGrid
 
 # Standard inputs.
@@ -236,9 +237,10 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
 
 def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[UrbanGrid, AnalyticalModel]:
     prefix = re.findall('batch_(.*)_NR', result['name'])[0]
-    grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
-    with open(grid_pkl, 'rb') as f:
-        urban_grid = pkl.load(f)
+    intersection_run = False
+    if 'type' in result[0]['scn'].keys():
+        if result[0]['scn']['type'] == 'intersection':
+            intersection_run = True
 
     # Extract parameters for analytical model.
     all_runs = [run for run in result.keys() if run != 'name']
@@ -246,7 +248,6 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
     all_t_l = [result[run]['scn']['t_l'] for run in all_runs]
-    max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
     duration = result[all_runs[0]]['scn']['duration']
 
     if np.any([len(np.unique(var)) > 1 for var in (all_speeds, all_s_h, all_s_v, all_t_l)]):
@@ -256,8 +257,19 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         s_h = all_s_h[0]
         s_v = all_s_v[0]
         t_l = all_t_l[0]
-    ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
-                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+
+    if intersection_run:
+        urban_grid = None
+        flow_ratio = result[all_runs[0]]['scn']['flow_ratio']
+        ana_model = IntersectionAnalyticalModel(flow_ratio=flow_ratio, max_value=40, accuracy=50,
+                                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+    else:
+        max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
+        grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
+        with open(grid_pkl, 'rb') as f:
+            urban_grid = pkl.load(f)
+        ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
+                                    duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
 
