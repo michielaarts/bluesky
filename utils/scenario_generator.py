@@ -136,7 +136,7 @@ class ScenarioGenerator:
                 scen_dict = {'n_inst': n_i, 'rep': rep, 'n_total': n_total,
                              'speed': V, 'duration': duration,
                              's_h': s_h, 's_v': s_v, 't_l': t_l, 't_r': t_r,
-                             'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes}
+                             'scenario': all_ac, 'grid_nodes': self.urban_grid.nodes, 'type': 'network'}
                 all_scen.append(scen_dict)
         return all_scen
 
