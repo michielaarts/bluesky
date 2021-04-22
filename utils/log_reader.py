@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
-from analytical import AnalyticalModel
-from intersection_analytical import IntersectionAnalyticalModel
+from analytical_model import AnalyticalModel
+from intersection_model import IntersectionAnalyticalModel
 from plugins.urban import UrbanGrid
 
 # Standard inputs.
