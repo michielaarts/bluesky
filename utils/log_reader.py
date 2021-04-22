@@ -238,13 +238,14 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
 
 def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[UrbanGrid, AnalyticalModel]:
     prefix = re.findall('batch_(.*)_NR', result['name'])[0]
+    all_runs = [run for run in result.keys() if run != 'name']
+
     intersection_run = False
-    if 'type' in result[0]['scn'].keys():
-        if result[0]['scn']['type'] == 'intersection':
+    if 'type' in result[all_runs[0]]['scn'].keys():
+        if result[all_runs[0]]['scn']['type'] == 'intersection':
             intersection_run = True
 
     # Extract parameters for analytical model.
-    all_runs = [run for run in result.keys() if run != 'name']
     all_speeds = [result[run]['scn']['speed'] for run in all_runs]
     all_s_h = [result[run]['scn']['s_h'] for run in all_runs]
     all_s_v = [result[run]['scn']['s_v'] for run in all_runs]
@@ -536,7 +537,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_quicklog_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_intersection_60400000_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
