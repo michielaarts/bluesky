@@ -3,6 +3,7 @@ The analytical model class for a single orthogonal intersection.
 
 Created by Michiel Aarts, April 2021
 """
+from analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 import pickle as pkl
@@ -15,7 +16,7 @@ from scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm, ft
 
 
-class IntersectionAnalyticalModel:
+class IntersectionModel(AnalyticalModel):
     def __init__(
             self,
             flow_ratio: Tuple[float, float, float, float], max_value: float,
@@ -35,6 +36,8 @@ class IntersectionAnalyticalModel:
         :param s_v: vertical separation distance [ft]
         :param t_l: look-ahead time [s]
         """
+        super().__init__()
+
         # Parse inputs.
         self.flow_ratio = flow_ratio
         self.max_value = max_value
@@ -285,17 +288,7 @@ class IntersectionAnalyticalModel:
         self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
         self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
 
-    def wr_camda_model(self):
-        """ Based on inst. no. of aircraft and CAMDA model """
-        nr_fit = opt.fmin(lambda a: np.nanmean(np.power(4 * a * np.power(self.n_inst / 4, 2) - self.c_inst_nr, 2)),
-                          x0=1, disp=False)[0]
-        c_total_wr_ni = 4 * nr_fit * np.power(self.n_inst_wr / 4, 2) * self.duration[1] / self.mean_conflict_duration_nr
-        c_1t = c_total_wr_ni / (self.n_total * self.mean_flight_time_nr)
-        c_1_wr = c_1t * self.mean_flight_time_wr
-        c_total_wr = c_1_wr * self.n_total
-        return c_total_wr
-
-    def wr_conflict_model(self):
+    def wr_conflict_model(self) -> np.ndarray:
         """ Based on local flow rates and delay """
         vehicle_delay_per_second = self.delays * self.from_flow_rates
         vd_to_idx = vehicle_delay_per_second.index.get_level_values('to')
@@ -316,7 +309,7 @@ class IntersectionAnalyticalModel:
         return c_total_wr
 
 
-def plot_mfd(model: IntersectionAnalyticalModel) -> None:
+def plot_mfd(model: IntersectionModel) -> None:
     """
     Plots the MFD of the provided analytical model.
     Useful when creating a scenario, to see whether the
@@ -337,7 +330,7 @@ if __name__ == '__main__':
     DURATION = (900., 2700., 900.)
     FLOW_RATIO = (0.6, 0.4, 0., 0.)
 
-    ana_model = IntersectionAnalyticalModel(FLOW_RATIO, max_value=50, accuracy=50,
-                                            duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+    ana_model = IntersectionModel(FLOW_RATIO, max_value=50, accuracy=50,
+                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
 
     plot_mfd(ana_model)

@@ -3,6 +3,7 @@ The analytical model class for an urban grid network.
 
 Created by Michiel Aarts, March 2021
 """
+from analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 import pickle as pkl
@@ -18,12 +19,9 @@ from bluesky.tools.aero import fpm, ft
 VS = 194. * fpm
 
 
-class AnalyticalModel:
-    def __init__(
-            self,
-            urban_grid: UrbanGrid, max_value: float, accuracy: int, duration: Tuple[float, float, float],
-            speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS,
-    ):
+class NetworkModel(AnalyticalModel):
+    def __init__(self, urban_grid: UrbanGrid, max_value: float, accuracy: int, duration: Tuple[float, float, float],
+                 speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS):
         """
         Class for the analytical conflict count and delay models.
 
@@ -37,6 +35,8 @@ class AnalyticalModel:
         :param t_l: look-ahead time [s]
         :param vs: vertical speed of aircraft [m/s] (optional)
         """
+        super().__init__()
+
         # Parse inputs.
         self.urban_grid = urban_grid
         self.max_value = max_value
@@ -50,7 +50,9 @@ class AnalyticalModel:
 
         self.cruise_alt = 50. * ft  # m
         self.departure_alt = 0. * ft  # m
-        self.mean_flight_time_nr = self.urban_grid.mean_route_length / self.speed
+        self.mean_route_length = self.urban_grid.mean_route_length
+        self.mean_flight_time_nr = self.mean_route_length / self.speed
+
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
@@ -289,7 +291,7 @@ class AnalyticalModel:
         wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
         wr_ni = wr_ni_per_section.sum() + self.n_inst_da
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
-        wr_mean_flight_time = self.urban_grid.mean_route_length / wr_mean_v
+        wr_mean_flight_time = self.mean_route_length / wr_mean_v
 
         # Filter unstable values and set to zero.
         unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
@@ -364,7 +366,7 @@ class AnalyticalModel:
         c_total_wr = c_1_wr * self.n_total
         return c_total_wr
 
-    def wr_conflict_model(self):
+    def wr_conflict_model(self) -> np.ndarray:
         """ Based on local flow rates and delay """
         vehicle_delay_per_second = self.delays * self.from_flow_rates
         vd_via_idx = vehicle_delay_per_second.index.get_level_values('via')

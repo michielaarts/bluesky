@@ -6,8 +6,9 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
-from analytical_model import AnalyticalModel
-from intersection_model import IntersectionAnalyticalModel
+from analytical import AnalyticalModel
+from network_model import NetworkModel
+from intersection_model import IntersectionModel
 from plugins.urban import UrbanGrid
 
 # Standard inputs.
@@ -261,15 +262,15 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     if intersection_run:
         urban_grid = None
         flow_ratio = result[all_runs[0]]['scn']['flow_ratio']
-        ana_model = IntersectionAnalyticalModel(flow_ratio=flow_ratio, max_value=40, accuracy=50,
-                                                duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+        ana_model = IntersectionModel(flow_ratio=flow_ratio, max_value=40, accuracy=50,
+                                      duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     else:
         max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
         grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
         with open(grid_pkl, 'rb') as f:
             urban_grid = pkl.load(f)
-        ana_model = AnalyticalModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
-                                    duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+        ana_model = NetworkModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
+                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     return urban_grid, ana_model
 
 
@@ -418,7 +419,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
                      color='blue', label='NR Model')
     flst_axs[0].plot(ana_model.n_inst, ana_model.mean_flight_time_wr, color='red', label='WR Model')
     flst_axs[1].set_ylabel('Mean 2D distance [m]')
-    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.urban_grid.mean_route_length,
+    flst_axs[1].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.mean_route_length,
                      color='purple', label='NR/WR Model')
     flst_axs[2].set_ylabel('Mean velocity [m/s]')
     flst_axs[2].plot(ana_model.n_inst, np.ones(ana_model.n_inst.shape) * ana_model.speed,
@@ -505,9 +506,9 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
     ni_wr[ana_model.flow_rate_wr == 0] = max(ni_wr)
     c_1_wr[ana_model.flow_rate_wr == 0] = 0
 
-    axs[0].plot(ana_model.n_inst, c_1_nr / ana_model.urban_grid.mean_route_length,
+    axs[0].plot(ana_model.n_inst, c_1_nr / ana_model.mean_route_length,
                 color='blue', label='NR Model')
-    axs[0].plot(ni_wr, c_1_wr / ana_model.urban_grid.mean_route_length,
+    axs[0].plot(ni_wr, c_1_wr / ana_model.mean_route_length,
                 color='red', label='WR Model')
     axs[1].plot(ana_model.n_inst, c_1_nr / ana_model.mean_flight_time_nr,
                 color='blue', label='NR Model')
