@@ -18,6 +18,9 @@ CRUISE_ALTITUDE = 0.  # ft
 APPROACH_DISTANCE = 1000.  # m
 SATURATION = [0.15, 0.35, 0.55, 0.75, 0.95]
 
+# Use exponential distribution for departure separation. If False: uniform + noise.
+EXPONENTIAL = True
+
 
 class ScenarioGenerator:
     def __init__(self):
@@ -81,9 +84,15 @@ class ScenarioGenerator:
                     spawn_interval = 1 / flow_rate
                     n_total_flow = round(sum(duration) * flow_rate)
                     n_total += n_total_flow
-                    departure_times = np.array(range(n_total_flow)) * spawn_interval
-                    # Add noise.
-                    departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99, size=n_total_flow)
+                    if EXPONENTIAL:
+                        # Exponential distribution.
+                        departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total_flow))
+                    else:
+                        # Uniform distribution.
+                        departure_times = np.array(range(n_total_flow)) * spawn_interval
+                        # Add noise.
+                        departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99,
+                                                                              size=n_total_flow)
 
                     # Calculate origin-destination combinations and routes.
                     for ac_id in range(len(departure_times)):
@@ -267,13 +276,13 @@ class ScenarioGenerator:
 if __name__ == '__main__':
     # FLOW_RATIO = (EASTBOUND, NORTHBOUND, EAST-NORTH TURN, NORTH-EAST TURN).
     FLOW_RATIO = (0.6, 0.4, 0., 0.)  # Sum should be 1.
-    REPETITIONS = 5
+    REPETITIONS = 3
 
     BUILD_UP_DURATION = 5 * 60.  # s
     EXPERIMENT_DURATION = 30 * 60.  # s
     COOL_DOWN_DURATION = 10 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = f'intersection_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
+    PREFIX = f'expon_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
 
     SPEED = 10.  # m/s
 

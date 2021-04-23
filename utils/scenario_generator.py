@@ -17,6 +17,9 @@ from scn_reader import plot_flow_rates
 DEPARTURE_ALTITUDE = 0.  # ft
 CRUISE_ALTITUDE = 50.  # ft
 
+# Use exponential distribution for departure separation. If False: uniform + noise.
+EXPONENTIAL = False
+
 
 class ScenarioGenerator:
     def __init__(
@@ -100,13 +103,16 @@ class ScenarioGenerator:
                 spawn_rate = n_i / mean_flight_time
                 spawn_interval = 1 / spawn_rate
                 n_total = round(sum(duration) * spawn_rate)
-                # Exponential distribution.
-                # departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))
-                # Exponential is more realistic, but makes comparison with analytical model less clear.
-                # Uniform interval.
-                departure_times = np.array(range(n_total)) * spawn_interval
-                # Add noise.
-                departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99, size=n_total)
+                if EXPONENTIAL:
+                    # Exponential distribution.
+                    # Exponential is more realistic, but std. dev. of inst. no. of aircraft is higher.
+                    departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))
+                else:
+                    # Uniform distribution.
+                    departure_times = np.array(range(n_total)) * spawn_interval
+                    # Add noise.
+                    departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99,
+                                                                          size=n_total)
 
                 # Calculate origin-destination combinations and routes.
                 od_nodes = self.urban_grid.od_nodes
