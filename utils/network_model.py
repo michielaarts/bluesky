@@ -80,22 +80,6 @@ class NetworkModel(AnalyticalModel):
         self.delays = self.delay_model(self.from_flow_rates)
         self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr = self.wr_model()
 
-        # Fitted variables.
-        self.c_inst_wr_fitted = None
-        self.mean_conflict_duration_nr = None  # s
-        self.mean_conflict_duration_wr = None  # s
-        self.c_total_nr = None
-        self.c_total_wr = None
-        self.c_total_wr_fitted = None
-        self.false_conflict_ratio = None
-        self.resolve_ratio = None
-        self.los_total_nr = None
-        self.los_total_wr = None
-        self.mean_los_duration_nr = None  # s
-        self.mean_los_duration_wr = None  # s
-        self.los_inst_nr_fitted = None
-        self.los_inst_wr = None
-
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         The conflict count model without conflict resolution.
