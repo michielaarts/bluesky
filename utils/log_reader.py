@@ -355,29 +355,30 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
 
     # Plot unstable experimental values.
     stable_filter = data['WR']['stable_filter']
-    color = 'red'
-    reso = 'WR'
-    conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
+    if any(~stable_filter):
+        color = 'red'
+        reso = 'WR'
+        conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
 
-    flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
-    flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
-                     '*', color=color, label=f'{reso}, unstable')
+        flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
+        flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
+                         '*', color=color, label=f'{reso}, unstable')
 
     # Fit and plot analytical model (incl. derivatives).
     ana_model.fit_derivatives(data)
@@ -388,25 +389,24 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     # conf_axs[0].plot(ana_model.n_inst, ana_model.c_inst_wr_fitted, color='coral', linestyle='--', label='WR Fitted')
     conf_axs[1].set_ylabel('Inst. no. of los [-]')
     conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr, color='blue', label='NR Model')
-    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
-                     label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.mean_los_duration_nr:.1f}$s')
-    conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr, color='coral', linestyle='--',
-                     label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.mean_los_duration_wr:.1f}$s')
+    # conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_nr_fitted, color='lightblue', linestyle='--',
+    #                  label=rf'NR Fitted, $\bar{{t_{{los,NR}}}}={ana_model.mean_los_duration_nr:.1f}$s')
+    # conf_axs[1].plot(ana_model.n_inst, ana_model.los_inst_wr_fitted, color='coral', linestyle='--',
+    #                  label=rf'WR Fitted, $\bar{{t_{{los,WR}}}}={ana_model.mean_los_duration_wr:.1f}$s')
     conf_axs[2].set_ylabel('Inst. no. of aircraft')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst, color='blue', label='NR Model')
     conf_axs[2].plot(ana_model.n_inst, ana_model.n_inst_wr, color='red', label='WR Model')
     conf_axs[3].set_ylabel('Total no. of conflicts [-]')
-    conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue',
-                     label=rf'NR Model, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
+    conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue', label='NR Model')
+    # conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_nr_fitted, color='lightblue', linestyle='--',
+    #                  label=rf'NR Model, $\bar{{t_{{c,NR}}}}={ana_model.mean_conflict_duration_nr:.1f}$s')
     conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr, color='red', label='WR Model')
-    # conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr_fitted, color='coral', linestyle='--',
-    #                  label=rf'WR Fitted, $\bar{{t_{{c,WR}}}}={ana_model.mean_conflict_duration_wr:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
-    conf_axs[4].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue', label='NR Model')
-    conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr, color='lightblue', linestyle='--',
-                     label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
-    conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_wr, color='coral', linestyle='--',
-                     label=f'WR Fitted, Resolved={ana_model.resolve_ratio * 100:.0f}%')
+    conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr, color='blue', label='NR Model')
+    # conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr_fitted, color='lightblue', linestyle='--',
+    #                  label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
+    # conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_wr_fitted, color='coral', linestyle='--',
+    #                  label=f'WR Fitted, Resolved={ana_model.resolve_ratio * 100:.0f}%')
     conf_axs[5].plot(ana_model.n_inst, ana_model.n_total, color='purple', label='NR/WR Model')
     conf_axs[5].set_ylabel('Total no. of A/C [-]')
 
@@ -535,10 +535,10 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
 
 
 if __name__ == '__main__':
-    use_pkl = False
+    use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_intersection_60400000_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_uniform_60400000_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:

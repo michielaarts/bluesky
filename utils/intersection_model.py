@@ -59,19 +59,22 @@ class IntersectionModel(AnalyticalModel):
         self.from_flow_rates, self.from_flow_hdg = self.determine_from_flow_rates(self.flow_rates)  # veh / s
 
         # NR conflict count model.
-        self.c_inst_nr, self.los_inst_nr = self.nr_model()
+        self.c_inst_nr, self.los_inst_nr, self.c_total_nr, self.los_total_nr = self.nr_model()
 
         # WR delay model.
         self.delays = self.delay_model(self.from_flow_rates)
         self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr = self.wr_model()
 
-    def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
+        # WR conflict count model.
+        self.c_total_wr = self.wr_conflict_model()
+
+    def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         The conflict count model without conflict resolution.
         Calculates the instantaneous number of conflicts and losses of separation,
         based on the flows through the intersection.
 
-        :return: (Inst. no. of conflicts, Inst. no. of LoS)
+        :return: (Inst. no. of conflicts, Inst. no. of LoS, Total no. of conflicts, Total no. of LoS)
         """
         print('Calculating analytical NR model...')
         nr_ni_per_section = self.section_length / self.speed * self.from_flow_rates.copy()
@@ -108,10 +111,12 @@ class IntersectionModel(AnalyticalModel):
 
         # Sum crossing conflicts / LoS.
         nr_li = nr_li_crossing  # + nr_li_self_interaction
+        nr_lostotal = nr_li * self.duration[1] / self.t_l
         # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
         nr_ci = nr_ci_crossing
+        nr_ctotal = nr_ci * self.duration[1] / self.t_l
 
-        return nr_ci, nr_li
+        return nr_ci, nr_li, nr_ctotal, nr_lostotal
 
     def determine_flow_rates(self) -> pd.DataFrame:
         """

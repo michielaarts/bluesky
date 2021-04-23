@@ -29,9 +29,11 @@ class AnalyticalModel:
         self.n_inst = None
         self.n_total = None
 
-        # NR model.
+        # NR conflict model.
         self.c_inst_nr = None
+        self.c_total_nr = None
         self.los_inst_nr = None
+        self.los_total_nr = None
 
         # WR delay model.
         self.delays = None
@@ -41,23 +43,26 @@ class AnalyticalModel:
         self.mean_flight_time_wr = None
         self.flow_rate_wr = None
 
+        # WR conflict model.
+        self.c_total_wr = None
+        self.dep = None
+
         # Fitted variables.
         self.c_inst_wr_fitted = None
         self.mean_conflict_duration_nr = None  # s
         self.mean_conflict_duration_wr = None  # s
-        self.c_total_nr = None
-        self.c_total_wr = None
+        self.c_total_nr_fitted = None
         self.c_total_wr_fitted = None
         self.false_conflict_ratio = None
         self.resolve_ratio = None
-        self.los_total_nr = None
-        self.los_total_wr = None
+        self.los_total_nr_fitted = None
+        self.los_total_wr_fitted = None
         self.mean_los_duration_nr = None  # s
         self.mean_los_duration_wr = None  # s
         self.los_inst_nr_fitted = None
-        self.los_inst_wr = None
+        self.los_inst_wr_fitted = None
 
-    def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
+    def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pass
 
     def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
@@ -112,13 +117,12 @@ class AnalyticalModel:
                                                                  data['NR']['ntotal_los'])
         self.resolve_ratio = self._fit_conflict_los_ratio(data['WR']['ntotal_conf'], data['WR']['ntotal_los'])
 
-        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.mean_conflict_duration_nr
-        self.c_total_wr = self.wr_conflict_model()
+        self.c_total_nr_fitted = self.c_inst_nr * self.duration[1] / self.mean_conflict_duration_nr
         self.c_total_wr_fitted = self.c_inst_wr_fitted * self.duration[1] / self.mean_conflict_duration_wr
-        self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
-        self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
-        self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
-        self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
+        self.los_total_nr_fitted = self.c_total_nr_fitted * (1 - self.false_conflict_ratio)
+        self.los_total_wr_fitted = self.c_total_wr_fitted * (1 - self.resolve_ratio)
+        self.los_inst_nr_fitted = self.los_total_nr_fitted * self.mean_los_duration_nr / self.duration[1]
+        self.los_inst_wr_fitted = self.los_total_wr_fitted * self.mean_los_duration_wr / self.duration[1]
 
     def wr_conflict_model(self):
         pass
