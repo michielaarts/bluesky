@@ -7,7 +7,6 @@ from analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 import pickle as pkl
-import matplotlib.pyplot as plt
 import scipy.optimize as opt
 from typing import Tuple
 from plugins.urban import UrbanGrid
@@ -52,7 +51,6 @@ class NetworkModel(AnalyticalModel):
         self.departure_alt = 0. * ft  # m
         self.mean_route_length = self.urban_grid.mean_route_length
         self.mean_flight_time_nr = self.mean_route_length / self.speed
-
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
@@ -302,60 +300,6 @@ class NetworkModel(AnalyticalModel):
 
         return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate
 
-    def _fit_mean_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:
-        """ Least squares fit of the mean conflict or los duration """
-        if exp_inst.shape != exp_total.shape:
-            raise ValueError('Inputs must be of same size')
-        t_mean = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
-                          x0=2., disp=False)[0]
-        return t_mean
-
-    @staticmethod
-    def _fit_conflict_los_ratio(exp_c_total: np.ndarray, exp_los_total: np.ndarray) -> float:
-        """ Least squares fit of the false conflict ratio """
-        if exp_c_total.shape != exp_los_total.shape:
-            raise ValueError('Inputs must be of same size')
-        ratio = opt.fmin(lambda a: np.nanmean(np.power(exp_c_total * a - exp_los_total, 2)),
-                         x0=0.5, disp=False)[0]
-        return 1 - ratio
-
-    def _fit_c_inst_wr(self, exp_n_inst_nr: np.ndarray, exp_c_inst_wr: np.ndarray) -> np.ndarray:
-        """ Least squares, second degree polynomial fit of the instantaneous number of conflicts with resolution """
-        res = opt.fmin(lambda a: np.nanmean(np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2)),
-                       x0=1, disp=False)[0]
-        return res * np.power(self.n_inst, 2)
-
-    def fit_derivatives(self, data: dict) -> None:
-        """
-        Fits all derivatives and functions of a given simulation experiment result.
-        E.g.: mean conflict duration, false conflict percentage, etc.
-
-        :param data: Data dictionary from utils/log_reader.py
-        """
-        print('Fitting derivatives...')
-        # Set all unstable data to nan.
-        for reso in data.keys():
-            for key in data[reso].keys():
-                if key != 'stable_filter':
-                    data[reso][key] = np.where(data[reso]['stable_filter'], data[reso][key], np.nan)
-
-        self.c_inst_wr_fitted = self._fit_c_inst_wr(data['NR']['ni_ac'], data['WR']['ni_conf'])
-        self.mean_conflict_duration_nr = self._fit_mean_duration(data['NR']['ni_conf'], data['NR']['ntotal_conf'])
-        self.mean_conflict_duration_wr = self._fit_mean_duration(data['WR']['ni_conf'], data['WR']['ntotal_conf'])
-        self.mean_los_duration_nr = self._fit_mean_duration(data['NR']['ni_los'], data['NR']['ntotal_los'])
-        self.mean_los_duration_wr = self._fit_mean_duration(data['WR']['ni_los'], data['WR']['ntotal_los'])
-        self.false_conflict_ratio = self._fit_conflict_los_ratio(data['NR']['ntotal_conf'],
-                                                                 data['NR']['ntotal_los'])
-        self.resolve_ratio = self._fit_conflict_los_ratio(data['WR']['ntotal_conf'], data['WR']['ntotal_los'])
-
-        self.c_total_nr = self.c_inst_nr * self.duration[1] / self.mean_conflict_duration_nr
-        self.c_total_wr = self.wr_conflict_model()
-        self.c_total_wr_fitted = self.c_inst_wr_fitted * self.duration[1] / self.mean_conflict_duration_wr
-        self.los_total_nr = self.c_total_nr * (1 - self.false_conflict_ratio)
-        self.los_total_wr = self.c_total_wr * (1 - self.resolve_ratio)
-        self.los_inst_nr_fitted = self.los_total_nr * self.mean_los_duration_nr / self.duration[1]
-        self.los_inst_wr = self.los_total_wr * self.mean_los_duration_wr / self.duration[1]
-
     def wr_camda_model(self):
         """ Based on inst. no. of aircraft and CAMDA model """
         nr_fit = opt.fmin(lambda a: np.nanmean(np.power(4 * a * np.power(self.n_inst / 4, 2) - self.c_inst_nr, 2)),
@@ -392,19 +336,6 @@ class NetworkModel(AnalyticalModel):
         return c_total_wr
 
 
-def plot_mfd(model: AnalyticalModel) -> None:
-    """
-    Plots the MFD of the provided analytical model.
-    Useful when creating a scenario, to see whether the
-    instantaneous numbers of aircraft without resolution
-    are within the stable range.
-    """
-    plt.figure()
-    plt.plot(model.n_inst, model.flow_rate_wr)
-    plt.xlabel('No. of inst. aircraft NR')
-    plt.ylabel('Flow rate [veh m / s]')
-
-
 if __name__ == '__main__':
     S_H = 50.  # m
     S_V = 25.  # ft
@@ -418,7 +349,7 @@ if __name__ == '__main__':
 
     plot_flow_rates(grid.flow_df)
 
-    ana_model = AnalyticalModel(grid, max_value=300, accuracy=50,
-                                duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+    ana_model = NetworkModel(grid, max_value=300, accuracy=50,
+                             duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
 
-    plot_mfd(ana_model)
+    ana_model.plot_mfd()

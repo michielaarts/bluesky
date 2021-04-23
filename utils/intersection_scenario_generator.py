@@ -7,12 +7,10 @@ Created by Michiel Aarts, April 2021
 from plugins.urban import UrbanGrid
 import numpy as np
 import scipy.stats as stats
-import random
 from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple, List
-from scn_reader import plot_flow_rates
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
