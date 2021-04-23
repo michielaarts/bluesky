@@ -10,7 +10,7 @@ import scipy.stats as stats
 from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
-from typing import Tuple, List
+from typing import Tuple
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
@@ -19,7 +19,7 @@ APPROACH_DISTANCE = 1000.  # m
 SATURATION = [0.15, 0.35, 0.55, 0.75, 0.95]
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
-EXPONENTIAL = True
+EXPONENTIAL = False
 
 
 class ScenarioGenerator:
@@ -62,8 +62,13 @@ class ScenarioGenerator:
 
         :return: list of scenario dicts
         """
+        # Sanity check.
+        if sum(flow_ratio) != 1:
+            raise ValueError('Sum of flow_ratio should be 1')
+
         # Prelim. calculations.
-        time_to_cross = s_h * np.sqrt(2) / speed
+        time_to_cross = s_h / speed
+        departure_sep = s_h / speed * 1.01
 
         # Loop through saturations.
         all_scen = []
@@ -94,7 +99,7 @@ class ScenarioGenerator:
                         departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99,
                                                                               size=n_total_flow)
 
-                    # Calculate origin-destination combinations and routes.
+                    # Create aircraft.
                     for ac_id in range(len(departure_times)):
                         ac_dict = {'id': ac_id + start_id, 'departure_time': departure_times[ac_id],
                                    'origin': self.routes[i][0], 'destination': self.routes[i][-1],
@@ -103,9 +108,20 @@ class ScenarioGenerator:
                         all_ac.append(ac_dict)
                     start_id = ac_id + 1
 
-                # Sort all ac on departure time
+                # Sort all ac on departure time.
                 departure_sort = np.argsort([ac['departure_time'] for ac in all_ac])
                 sorted_ac = np.array(all_ac)[departure_sort]
+
+                # Separate aircraft from same origin prior to departure.
+                for origin in [self.west, self.south]:
+                    prior_dep_time = -1E9
+                    for j in range(len(sorted_ac)):
+                        if sorted_ac[j]['origin'] == origin:
+                            if sorted_ac[j]['departure_time'] - prior_dep_time < departure_sep:
+                                # Increase separation if too close to prior aircraft.
+                                sorted_ac[j]['departure_time'] = prior_dep_time + departure_sep
+                            prior_dep_time = sorted_ac[j]['departure_time']
+
                 scen_dict = {'flow_ratio': flow_ratio, 'sat': sat, 'rep': rep,
                              'n_total': n_total, 'speed': speed, 'duration': duration,
                              's_h': s_h, 's_v': s_v, 't_l': t_lookahead, 't_r': t_reaction,
@@ -282,7 +298,7 @@ if __name__ == '__main__':
     EXPERIMENT_DURATION = 30 * 60.  # s
     COOL_DOWN_DURATION = 10 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = f'expon_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
+    PREFIX = f'uniform_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
 
     SPEED = 10.  # m/s
 

@@ -402,6 +402,7 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     # conf_axs[3].plot(ana_model.n_inst, ana_model.c_total_wr_fitted, color='coral', linestyle='--',
     #                  label=rf'WR Fitted, $\bar{{t_{{c,WR}}}}={ana_model.mean_conflict_duration_wr:.1f}$s')
     conf_axs[4].set_ylabel('Total no. of los [-]')
+    conf_axs[4].plot(ana_model.n_inst, ana_model.c_total_nr, color='blue', label='NR Model')
     conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_nr, color='lightblue', linestyle='--',
                      label=f'NR Fitted, False conflicts={ana_model.false_conflict_ratio * 100:.0f}%')
     conf_axs[4].plot(ana_model.n_inst, ana_model.los_total_wr, color='coral', linestyle='--',
@@ -534,7 +535,7 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
 
 
 if __name__ == '__main__':
-    use_pkl = True
+    use_pkl = False
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_intersection_60400000_NR.pkl')

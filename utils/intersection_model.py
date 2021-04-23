@@ -74,18 +74,20 @@ class IntersectionModel(AnalyticalModel):
         :return: (Inst. no. of conflicts, Inst. no. of LoS)
         """
         print('Calculating analytical NR model...')
-        # Self interaction (LoS only).
         nr_ni_per_section = self.section_length / self.speed * self.from_flow_rates.copy()
-        nr_li_si_per_section = 0. * nr_ni_per_section.copy()
-        for n in range(2, 100):
-            poisson_prob_per_section = nr_ni_per_section.pow(n) * np.exp(-nr_ni_per_section) / np.math.factorial(n)
-            nr_li_si_per_section += (poisson_prob_per_section * n * (n - 1) * self.s_h
-                                     / (self.section_length + self.s_h))
-            if poisson_prob_per_section.max().max() < 1E-5:
-                # Probability has become insignificant. Break loop.
-                print(f'NR model: Poisson probability loop broken after P(x={n})')
-                break
-        nr_li_self_interaction = nr_li_si_per_section.sum()
+
+        # Self interaction (LoS only).
+        # Self interaction not present anymore with departure separation.
+        # nr_li_si_per_section = 0. * nr_ni_per_section.copy()
+        # for n in range(2, 100):
+        #     poisson_prob_per_section = nr_ni_per_section.pow(n) * np.exp(-nr_ni_per_section) / np.math.factorial(n)
+        #     nr_li_si_per_section += (poisson_prob_per_section * n * (n - 1) * self.s_h
+        #                              / (self.section_length + self.s_h))
+        #     if poisson_prob_per_section.max().max() < 1E-5:
+        #         # Probability has become insignificant. Break loop.
+        #         print(f'NR model: Poisson probability loop broken after P(x={n})')
+        #         break
+        # nr_li_self_interaction = nr_li_si_per_section.sum()
 
         # Crossing conflicts and LoS.
         # Define areas.
@@ -104,8 +106,8 @@ class IntersectionModel(AnalyticalModel):
             # Sanity check.
             raise NotImplementedError(f'Intersections with {len(nr_ni_per_section)} segments not implemented.')
 
-        # Sum self interaction and crossing conflicts / LoS.
-        nr_li = nr_li_crossing + nr_li_self_interaction
+        # Sum crossing conflicts / LoS.
+        nr_li = nr_li_crossing  # + nr_li_self_interaction
         # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
         nr_ci = nr_ci_crossing
 
@@ -153,8 +155,11 @@ class IntersectionModel(AnalyticalModel):
         delays = pd.DataFrame().reindex_like(flow_df)
 
         # Delay model.
+        # Two parts: 1) departure separation (within flow), 2) intersection separation (between flows)
+        # Departure separation is performed in the scenario generator.
+        # Intersection separation.
         # Time to cross an intersection [s]. Change sqrt(2) if angle between airways is not 90 degrees.
-        t_x = self.s_h * np.sqrt(2) / self.speed
+        t_x = self.s_h / self.speed
         approach_flows = flow_df.loc[flow_df.index.get_level_values('to') == 'middle'].copy()
         from_nodes = approach_flows.index.get_level_values('from')
         total_q = approach_flows.sum()

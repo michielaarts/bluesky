@@ -22,7 +22,7 @@ else:
         print(data[fname].head())
         try:
             # CONFLOGS.
-            plt.plot(data[fname]['t'] - data[fname]['t'][0], data[fname]['ni_conf'], label=fname)
+            plt.plot(data[fname]['t'] - data[fname]['t'][0], data[fname]['ni_ac'], label=fname)
         except KeyError:
             pass
         try:
