@@ -190,7 +190,7 @@ class ScenarioGenerator:
                 f.write(f'# Vertical separation: {scn["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scn["t_l"]:.1f}s\n')
                 f.write(f'# Mean route length: {2 * APPROACH_DISTANCE:.1f}m\n')
-                f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
+                f.write(f'# NOTE: this scenario requires plugins: SPEEDBASED, URBAN_AREA\n')
                 f.write('# ########################################### #\n\n')
 
                 # Load middle node
@@ -291,14 +291,14 @@ class ScenarioGenerator:
 
 if __name__ == '__main__':
     # FLOW_RATIO = (EASTBOUND, NORTHBOUND, EAST-NORTH TURN, NORTH-EAST TURN).
-    FLOW_RATIO = (0.6, 0.4, 0., 0.)  # Sum should be 1.
-    REPETITIONS = 3
+    FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)  # Sum should be 1.
+    REPETITIONS = 10
 
-    BUILD_UP_DURATION = 5 * 60.  # s
-    EXPERIMENT_DURATION = 30 * 60.  # s
-    COOL_DOWN_DURATION = 10 * 60.  # s
+    BUILD_UP_DURATION = 15 * 60.  # s
+    EXPERIMENT_DURATION = 45 * 60.  # s
+    COOL_DOWN_DURATION = 15 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = f'uniform_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
+    PREFIX = f'full_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
 
     SPEED = 10.  # m/s
 

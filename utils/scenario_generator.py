@@ -206,7 +206,7 @@ class ScenarioGenerator:
                 f.write(f'# Vertical separation: {scn["s_v"]:.1f}ft\n')
                 f.write(f'# Look-ahead time: {scn["t_l"]:.1f}s\n')
                 f.write(f'# Mean route length: {self.urban_grid.mean_route_length:.1f}m\n')
-                f.write(f'# NOTE: this scenario requires plugins: DATAFEED, SPEEDBASED, URBAN_AREA\n')
+                f.write(f'# NOTE: this scenario requires plugins: SPEEDBASED, URBAN_AREA\n')
                 f.write('# ########################################### #\n\n')
 
                 # Load urban grid

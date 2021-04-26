@@ -158,13 +158,13 @@ class IntersectionModel(AnalyticalModel):
         :return: Delay dataframe
         """
         delays = pd.DataFrame().reindex_like(flow_df)
-
-        # Delay model.
-        # Two parts: 1) departure separation (within flow), 2) intersection separation (between flows)
+        # Delay model has two parts:
+        # 1) departure separation (within flow).
+        # 2) intersection separation (between flows).
         # Departure separation is performed in the scenario generator.
+
         # Intersection separation.
-        # Time to cross an intersection [s]. Change sqrt(2) if angle between airways is not 90 degrees.
-        t_x = self.s_h / self.speed
+        t_x = self.s_h / self.speed  # Time to cross an intersection [s].
         approach_flows = flow_df.loc[flow_df.index.get_level_values('to') == 'middle'].copy()
         from_nodes = approach_flows.index.get_level_values('from')
         total_q = approach_flows.sum()
