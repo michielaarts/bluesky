@@ -115,10 +115,11 @@ class IntersectionModel(AnalyticalModel):
 
         # Sum crossing conflicts / LoS.
         nr_li = nr_li_crossing  # + nr_li_self_interaction
-        nr_lostotal = nr_li * self.duration[1] / self.t_l
         # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
         nr_ci = nr_ci_crossing
         nr_ctotal = nr_ci * self.duration[1] / self.t_l
+        # Each conflict should result in a LoS.
+        nr_lostotal = nr_ctotal
 
         return nr_ci, nr_li, nr_ctotal, nr_lostotal
 

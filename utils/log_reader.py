@@ -337,50 +337,64 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
     for reso in data.keys():
         if reso == 'NR':
             color = 'blue'
+            marker = 'o'
         else:
             color = 'red'
+            marker = '^'
+        alpha = 0.5
 
         stable_filter = data[reso]['stable_filter']
 
-        conf_axs[0].scatter(x[stable_filter], data[reso]['ni_conf'][stable_filter], color=color, label=reso)
-        conf_axs[1].scatter(x[stable_filter], data[reso]['ni_los'][stable_filter], color=color, label=reso)
-        conf_axs[2].scatter(x[stable_filter], data[reso]['ni_ac'][stable_filter], color=color, label=reso)
-        conf_axs[3].scatter(x[stable_filter], data[reso]['ntotal_conf'][stable_filter], color=color, label=reso)
-        conf_axs[4].scatter(x[stable_filter], data[reso]['ntotal_los'][stable_filter], color=color, label=reso)
-        conf_axs[5].scatter(x[stable_filter], data[reso]['ntotal_ac'][stable_filter], color=color, label=reso)
+        conf_axs[0].scatter(x[stable_filter], data[reso]['ni_conf'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        conf_axs[1].scatter(x[stable_filter], data[reso]['ni_los'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        conf_axs[2].scatter(x[stable_filter], data[reso]['ni_ac'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        conf_axs[3].scatter(x[stable_filter], data[reso]['ntotal_conf'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        conf_axs[4].scatter(x[stable_filter], data[reso]['ntotal_los'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        conf_axs[5].scatter(x[stable_filter], data[reso]['ntotal_ac'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
 
-        flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter], color=color, label=reso)
-        flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter], color=color, label=reso)
-        flst_axs[2].scatter(x[stable_filter], data[reso]['mean_v'][stable_filter], color=color, label=reso)
+        flst_axs[0].scatter(x[stable_filter], data[reso]['flight_time'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        flst_axs[1].scatter(x[stable_filter], data[reso]['dist2D'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
+        flst_axs[2].scatter(x[stable_filter], data[reso]['mean_v'][stable_filter],
+                            marker=marker, color=color, alpha=alpha, label=reso)
         flst_axs[3].scatter(data[reso]['ni_ac'][stable_filter], data[reso]['flow_rate'][stable_filter],
-                            color=color, label=reso)
+                            marker=marker, color=color, alpha=alpha, label=reso)
 
     # Plot unstable experimental values.
     stable_filter = data['WR']['stable_filter']
     if any(~stable_filter):
         color = 'red'
         reso = 'WR'
+        marker = '*'
+        alpha = 0.5
         conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
 
         flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
-                         '*', color=color, label=f'{reso}, unstable')
+                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
 
     # Fit and plot analytical model (incl. derivatives).
     ana_model.fit_derivatives(data)
@@ -491,15 +505,20 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
 
     # Plot experimental values.
     color = {'NR': 'blue', 'WR': 'red'}
+    marker = {'NR': 'o', 'WR': '^'}
+    alpha = 0.5
     for reso in data.keys():
         data[reso]['c1'] = data[reso]['ntotal_conf'] / data[reso]['ntotal_ac']
         data[reso]['c1_dist'] = data[reso]['c1'] / data[reso]['dist3D']
         data[reso]['c1_time'] = data[reso]['c1'] / data[reso]['flight_time']
-        axs[0].scatter(data[reso]['ni_ac'], data[reso]['c1_dist'], color=color[reso], label=reso)
-        axs[1].scatter(data[reso]['ni_ac'], data[reso]['c1_time'], color=color[reso], label=reso)
-        axs[2].scatter(data[reso]['ni_ac'], data[reso]['c1'], color=color[reso], label=reso)
+        axs[0].scatter(data[reso]['ni_ac'], data[reso]['c1_dist'],
+                       color=color[reso], label=reso, alpha=alpha, marker=marker[reso])
+        axs[1].scatter(data[reso]['ni_ac'], data[reso]['c1_time'],
+                       color=color[reso], label=reso, alpha=alpha, marker=marker[reso])
+        axs[2].scatter(data[reso]['ni_ac'], data[reso]['c1'],
+                       color=color[reso], label=reso, alpha=alpha, marker=marker[reso])
     dep = data['WR']['ntotal_conf'] / data['NR']['ntotal_conf'] - 1
-    axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental')
+    axs[3].scatter(data['NR']['ni_ac'], dep, color='purple', label='Experimental', alpha=alpha, marker='s')
     ylim = {ax: ax.get_ylim() for ax in axs}
 
     # Extract and plot analytical models.
