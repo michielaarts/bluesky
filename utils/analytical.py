@@ -29,6 +29,15 @@ class AnalyticalModel:
         self.n_inst = None
         self.n_total = None
 
+        # Back-end variables
+        self.flow_proportion = None
+        self.n_inst_da = None  # Departure / arrival n_inst
+        self.flow_rates = None  # veh / s
+        self.departure_rate = None  # veh / s
+        self.arrival_rate = None  # By definition, for a stable system
+        self.from_flow_rates = None  # veh / s
+        self.from_flow_hdg = None  # veh / s
+
         # NR conflict model.
         self.c_inst_nr = None
         self.c_total_nr = None
@@ -62,6 +71,9 @@ class AnalyticalModel:
         self.los_inst_nr_fitted = None
         self.los_inst_wr_fitted = None
 
+    def calculate_models(self):
+        pass
+
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pass
 
@@ -75,7 +87,7 @@ class AnalyticalModel:
         """ Least squares fit of the mean conflict or los duration """
         if exp_inst.shape != exp_total.shape:
             raise ValueError('Inputs must be of same size')
-        t_mean = opt.fmin(lambda a: np.nanmean(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
+        t_mean = opt.fmin(lambda a: np.nansum(np.power(exp_inst * self.duration[1] / a - exp_total, 2)),
                           x0=2., disp=False)[0]
         return t_mean
 
@@ -84,13 +96,13 @@ class AnalyticalModel:
         """ Least squares fit of the false conflict ratio """
         if exp_c_total.shape != exp_los_total.shape:
             raise ValueError('Inputs must be of same size')
-        ratio = opt.fmin(lambda a: np.nanmean(np.power(exp_c_total * a - exp_los_total, 2)),
+        ratio = opt.fmin(lambda a: np.nansum(np.power(exp_c_total * a - exp_los_total, 2)),
                          x0=0.5, disp=False)[0]
         return 1 - ratio
 
     def _fit_c_inst_wr(self, exp_n_inst_nr: np.ndarray, exp_c_inst_wr: np.ndarray) -> np.ndarray:
         """ Least squares, second degree polynomial fit of the instantaneous number of conflicts with resolution """
-        res = opt.fmin(lambda a: np.nanmean(np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2)),
+        res = opt.fmin(lambda a: np.nansum(np.power(a * exp_n_inst_nr * exp_n_inst_nr - exp_c_inst_wr, 2)),
                        x0=1, disp=False)[0]
         return res * np.power(self.n_inst, 2)
 

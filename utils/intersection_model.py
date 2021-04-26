@@ -51,6 +51,10 @@ class IntersectionModel(AnalyticalModel):
         # Initiate arrays.
         self.n_inst = np.linspace(1, self.max_value, self.accuracy)
 
+        # Calculate models.
+        self.calculate_models()
+
+    def calculate_models(self):
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
         self.flow_rates = self.determine_flow_rates()  # veh / s

@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pickle as pkl
 import re
+import copy
+import scipy.optimize as opt
 from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
@@ -534,6 +536,39 @@ def camda_assumption(data: dict, ana_model: AnalyticalModel):
     return fig
 
 
+def estimate_accuracy(data: dict, ana_model: AnalyticalModel) -> pd.Series:
+    """
+    Determines the accuracy of the analytical models by the k factor.
+    The k factor is fitted in a least-squares sense.
+    See Sunil et al. (2018) Three-dimensional conflict count models for unstructured and layered airspace designs.
+    Experimental = analytical * k.
+    """
+    print('Estimating analytical model accuracies...')
+    # Recalculate analytical model at the desired n_inst.
+    acc_model = copy.deepcopy(ana_model)
+    acc_model.n_inst = data['NR']['ni_ac']
+    acc_model.calculate_models()
+
+    # Determine k factors.
+    k_c_total_nr = opt.fmin(lambda k:
+                            np.nansum(np.power(data['NR']['ntotal_conf'] - acc_model.c_total_nr.values * k, 2)),
+                            x0=1., disp=False)[0]
+    k_c_total_wr = opt.fmin(lambda k:
+                            np.nansum(np.power(data['WR']['ntotal_conf'] - acc_model.c_total_wr.values * k, 2)),
+                            x0=1., disp=False)[0]
+    k_mean_v_wr = opt.fmin(lambda k:
+                           np.nansum(np.power(data['WR']['mean_v'] - acc_model.mean_v_wr.values * k, 2)),
+                           x0=1., disp=False)[0]
+
+    # Collect accuracies in Series.
+    acc = pd.Series({
+        'c_total_nr': k_c_total_nr,
+        'c_total_wr': k_c_total_wr,
+        'mean_v_wr': k_mean_v_wr
+    }, name='k')
+    return acc
+
+
 if __name__ == '__main__':
     use_pkl = True
 
@@ -551,3 +586,5 @@ if __name__ == '__main__':
     save_figures(figs, res['name'])
     data_df = save_data(data_dict, res['name'])
     figs.append(camda_assumption(data_dict, analytical))
+    accuracy = estimate_accuracy(data_dict, analytical)
+    print(accuracy)
