@@ -11,6 +11,20 @@ root.destroy()
 
 if len(filenames) == 1:
     data = pd.read_csv(Path(filenames[0]), comment='#', skipinitialspace=True)
+    try:
+        # CONFLOGS.
+        plt.figure()
+        plt.plot(data['t'] - data['t'][0], data['ni_ac'], label='ni_ac')
+        plt.plot(data['t'] - data['t'][0], data['ni_los'], label='ni_los')
+        plt.legend()
+        plt.xlabel('Time [s]')
+    except KeyError:
+        pass
+    try:
+        # FLSTLOGS.
+        print(f'Mean V: {np.mean(data["dist3D"] / data["flight_time"]):.2f}m/s')
+    except KeyError:
+        pass
     print(data.head())
 else:
     data = {}

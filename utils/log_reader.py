@@ -373,28 +373,29 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         color = 'red'
         reso = 'WR'
         marker = '*'
+        linestyle = 'None'
         alpha = 0.5
         conf_axs[0].plot(x[~stable_filter], data[reso]['ni_conf'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[1].plot(x[~stable_filter], data[reso]['ni_los'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[2].plot(x[~stable_filter], data[reso]['ni_ac'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[3].plot(x[~stable_filter], data[reso]['ntotal_conf'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[4].plot(x[~stable_filter], data[reso]['ntotal_los'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         conf_axs[5].plot(x[~stable_filter], data[reso]['ntotal_ac'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
 
         flst_axs[0].plot(x[~stable_filter], data[reso]['flight_time'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[1].plot(x[~stable_filter], data[reso]['dist2D'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[2].plot(x[~stable_filter], data[reso]['mean_v'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
         flst_axs[3].plot(x[~stable_filter], data[reso]['flow_rate'][~stable_filter],
-                         marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
+                         linestyle=linestyle, marker=marker, color=color, alpha=alpha, label=f'{reso}, unstable')
 
     # Fit and plot analytical model (incl. derivatives).
     ana_model.fit_derivatives(data)
@@ -592,7 +593,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_uniform_60400000_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_full_54360604_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
