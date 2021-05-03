@@ -106,7 +106,13 @@ class ScenarioGenerator:
                                    'path': self.routes[i], 'path_length': 2 * APPROACH_DISTANCE,
                                    'hdg': self.hdg[i], 'ac_type': ac_type}
                         all_ac.append(ac_dict)
-                    start_id = ac_id + 1
+                    start_id += ac_id + 1
+
+                # Sanity check on all id's.
+                all_id = np.array([ac['id'] for ac in all_ac])
+                _, id_counts = np.unique(all_id, return_counts=True)
+                if np.any(id_counts > 1):
+                    raise RuntimeError('Something went wrong in determining ACIDs')
 
                 # Sort all ac on departure time.
                 departure_sort = np.argsort([ac['departure_time'] for ac in all_ac])
