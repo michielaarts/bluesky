@@ -4,19 +4,20 @@ Intersection has 4 flows: East- and northbound, east-north turn, and north-east 
 
 Created by Michiel Aarts, April 2021
 """
-from plugins.urban import UrbanGrid
 import numpy as np
 import scipy.stats as stats
 from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
+from plugins.urban import UrbanGrid
+from intersection_model import IntersectionModel
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
 CRUISE_ALTITUDE = 0.  # ft
 APPROACH_DISTANCE = 1000.  # m
-SATURATION = [0.15, 0.35, 0.55, 0.75, 0.95]
+SATURATION = np.linspace(0.05, 0.95, 10)  #  [0.15, 0.35, 0.55, 0.75, 0.95]
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
 EXPONENTIAL = False
@@ -39,6 +40,8 @@ class ScenarioGenerator:
             (self.south, self.middle, self.east)
         ]
         self.hdg = [90., 0., 90., 0.]
+
+        self.model = None
 
     def create_scenario(self, flow_ratio: Tuple[float, float, float, float], repetitions: int,
                         speed: float, duration: Tuple[float, float, float],
@@ -66,8 +69,15 @@ class ScenarioGenerator:
         if sum(flow_ratio) != 1:
             raise ValueError('Sum of flow_ratio should be 1')
 
+        # Extract analytical model.
+        self.model = IntersectionModel(flow_ratio=flow_ratio, max_value=100, accuracy=100,
+                                       duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_lookahead)
+
+        max_ni_nr = max(self.model.n_inst[~self.model.n_inst_wr.isna()])
+        mean_flight_time = 2 * APPROACH_DISTANCE / speed
+        max_intersection_flow_rate = max_ni_nr / mean_flight_time
+
         # Prelim. calculations.
-        time_to_cross = s_h / speed
         departure_sep = s_h / speed * 1.01
 
         # Loop through saturations.
@@ -85,7 +95,7 @@ class ScenarioGenerator:
                         continue
 
                     # Determine departure times.
-                    flow_rate = flow_ratio[i] * sat / time_to_cross  # lambda x s
+                    flow_rate = flow_ratio[i] * sat * max_intersection_flow_rate
                     spawn_interval = 1 / flow_rate
                     n_total_flow = round(sum(duration) * flow_rate)
                     n_total += n_total_flow
@@ -304,7 +314,7 @@ if __name__ == '__main__':
     EXPERIMENT_DURATION = 45 * 60.  # s
     COOL_DOWN_DURATION = 15 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = f'full_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
+    PREFIX = f'final_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
 
     SPEED = 10.  # m/s
 
