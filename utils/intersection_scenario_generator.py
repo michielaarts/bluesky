@@ -17,7 +17,7 @@ from intersection_model import IntersectionModel
 DEPARTURE_ALTITUDE = 0.  # ft
 CRUISE_ALTITUDE = 0.  # ft
 APPROACH_DISTANCE = 1000.  # m
-SATURATION = np.linspace(0.05, 0.95, 10)  #  [0.15, 0.35, 0.55, 0.75, 0.95]
+SATURATION = np.linspace(0.05, 0.95, 10)  # [0.15, 0.35, 0.55, 0.75, 0.95]
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
 EXPONENTIAL = False
@@ -42,6 +42,7 @@ class ScenarioGenerator:
         self.hdg = [90., 0., 90., 0.]
 
         self.model = None
+        self.flow_ratio = None
 
     def create_scenario(self, flow_ratio: Tuple[float, float, float, float], repetitions: int,
                         speed: float, duration: Tuple[float, float, float],
@@ -69,8 +70,10 @@ class ScenarioGenerator:
         if sum(flow_ratio) != 1:
             raise ValueError('Sum of flow_ratio should be 1')
 
+        self.flow_ratio = flow_ratio
+
         # Extract analytical model.
-        self.model = IntersectionModel(flow_ratio=flow_ratio, max_value=100, accuracy=100,
+        self.model = IntersectionModel(flow_ratio=self.flow_ratio, max_value=100, accuracy=100,
                                        duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_lookahead)
 
         max_ni_nr = max(self.model.n_inst[~self.model.n_inst_wr.isna()])
@@ -83,6 +86,11 @@ class ScenarioGenerator:
         # Loop through saturations.
         all_scen = []
         for sat in SATURATION:
+            # For turn ratio simulations.
+            # flow_ratio = (self.flow_ratio[0] * (1 - sat), self.flow_ratio[1] * (1 - sat),
+            #               self.flow_ratio[0] * sat, self.flow_ratio[1] * sat)
+            # sat = 0.7
+
             for rep in range(repetitions):
                 start_id = 0
                 ac_id = 0
@@ -185,14 +193,18 @@ class ScenarioGenerator:
             tas = spd / kts
             duration = scn['duration']
 
+            # Filename.
+            flow_ratio_string = ''.join(str(round(flow * 100)).zfill(2) for flow in scn['flow_ratio'])
+            filename = f'{prefix}_{flow_ratio_string}_S{sat * 100:.0f}_R{rep:.0f}'
+
             # Save data to .pkl file.
-            pkl_file = f'{prefix}_S{sat * 100:.0f}_R{rep:.0f}.pkl'
+            pkl_file = f'{filename}.pkl'
             with open(pkl_path / pkl_file, 'wb') as f:
                 pkl.dump(scn, f, protocol=pkl.HIGHEST_PROTOCOL)
                 print(f'Written {pkl_path / pkl_file}')
 
             # Save scenario to .scn file.
-            scn_file = f'{prefix}_S{sat * 100:.0f}_R{rep:.0f}.scn'
+            scn_file = f'{filename}.scn'
             all_scn_files.append(scn_file)
             with open(scn_path / scn_file, 'w') as f:
                 f.write('# ########################################### #\n')
@@ -263,8 +275,9 @@ class ScenarioGenerator:
 
         if len(all_scen) > 1:
             # Write batch file
-            filename_nr = f'batch_{prefix}_NR.scn'
-            filename_wr = f'batch_{prefix}_WR.scn'
+            flow_ratio_string = ''.join(str(round(flow * 100)).zfill(2) for flow in self.flow_ratio)
+            filename_nr = f'batch_{prefix}_{flow_ratio_string}_NR.scn'
+            filename_wr = f'batch_{prefix}_{flow_ratio_string}_WR.scn'
             safety_factor = 1.5
             max_rep_nr = max(scn['rep'] for scn in all_scen) + 1
 
@@ -307,14 +320,14 @@ class ScenarioGenerator:
 
 if __name__ == '__main__':
     # FLOW_RATIO = (EASTBOUND, NORTHBOUND, EAST-NORTH TURN, NORTH-EAST TURN).
-    FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)  # Sum should be 1.
+    FLOW_RATIO = (0.6, 0.4, 0.0, 0.0)  # Sum should be 1.
     REPETITIONS = 10
 
     BUILD_UP_DURATION = 15 * 60.  # s
     EXPERIMENT_DURATION = 45 * 60.  # s
     COOL_DOWN_DURATION = 15 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = f'final_{"".join(str(round(flow * 100)).zfill(2) for flow in FLOW_RATIO)}'
+    PREFIX = 'turn_exp'
 
     SPEED = 10.  # m/s
 
