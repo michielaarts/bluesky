@@ -67,10 +67,11 @@ class IntersectionModel(AnalyticalModel):
 
         # WR delay model.
         self.delays = self.delay_model(self.from_flow_rates)
-        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr = self.wr_model()
+        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr, self.delay_wr = self.wr_model()
 
         # WR conflict count model.
         self.c_total_wr = self.wr_conflict_model()
+        self.dep = (self.c_total_wr / self.c_total_nr) - 1.
 
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -169,7 +170,7 @@ class IntersectionModel(AnalyticalModel):
         # Departure separation is performed in the scenario generator.
 
         # Intersection separation.
-        t_x = self.s_h / self.speed  # Time to cross an intersection [s].
+        t_x = self.s_h * np.sqrt(2) / self.speed  # Time to cross an intersection [s].
         approach_flows = flow_df.loc[flow_df.index.get_level_values('to') == 'middle'].copy()
         from_nodes = approach_flows.index.get_level_values('from')
         total_q = approach_flows.sum()
@@ -184,12 +185,16 @@ class IntersectionModel(AnalyticalModel):
             y = q_g * t_x
             general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
-            # Stochastic delay.
-            stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
-            stochastic_delay = total_stochastic_delay - stochastic_flow_delay
+            # Stochastic delay. --  Old version
+            # stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
+            # stochastic_delay = total_stochastic_delay - stochastic_flow_delay
+
+            # Stochastic delay V2.
+            stochastic_y = q_g * general_delay
+            stochastic_delay = stochastic_y * stochastic_y / (2 * q_g * (1 - stochastic_y))
 
             # If intersection unstable, set delay very large.
-            stochastic_delay[total_y >= 1] = 1E5
+            general_delay[total_y >= 1] = 1E5
 
             # Add to delays df.
             delays.loc[(from_nodes[i], 'middle')] = general_delay + stochastic_delay
@@ -197,16 +202,19 @@ class IntersectionModel(AnalyticalModel):
         delays[delays.isna()] = 0
         return delays
 
-    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         The delay model with conflict resolution.
         Calculates the mean velocity, instantaneous number of aircraft,
         and the mean flight time of the flows through an urban grid.
         If the delay model predicts an unstable system, the values are set to zero.
 
-        :return: (Mean velocity, No. Inst. A/C, Mean flight time, Flow rate)
+        :return: (Mean velocity, No. Inst. A/C, Mean flight time, Flow rate, Mean delay)
         """
         print('Calculating analytical WR model...')
+        isct_flow_rates = self.from_flow_rates.loc[self.from_flow_rates.index.get_level_values('to') == 'middle'].sum()
+        wr_delay = (self.delays * self.from_flow_rates.loc[self.delays.index]).sum() / isct_flow_rates
+
         max_ni_per_section = self.section_length / self.s_h
 
         nr_flight_time_per_section = self.section_length / self.speed
@@ -218,14 +226,14 @@ class IntersectionModel(AnalyticalModel):
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
         wr_mean_flight_time = self.mean_route_length / wr_mean_v
 
-        # Filter unstable values and set to zero.
+        # Filter unstable values and set to NaN.
         unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
-        wr_mean_v[unstable_filter] = 0
-        wr_ni[unstable_filter] = 0
-        wr_mean_flight_time[unstable_filter] = 0
+        wr_mean_v[unstable_filter] = np.nan
+        wr_ni[unstable_filter] = np.nan
+        wr_mean_flight_time[unstable_filter] = np.nan
         wr_flow_rate = wr_mean_v * wr_ni
 
-        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate
+        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate, wr_delay
 
     def wr_conflict_model(self) -> np.ndarray:
         """ Based on local flow rates and delay """

@@ -46,6 +46,7 @@ class AnalyticalModel:
 
         # WR delay model.
         self.delays = None
+        self.delay_wr = None
         self.mean_v_wr = None
         self.n_inst_wr = None
         self.mean_flight_time_nr = None
@@ -80,7 +81,7 @@ class AnalyticalModel:
     def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
         pass
 
-    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pass
 
     def _fit_mean_duration(self, exp_inst: np.ndarray, exp_total: np.ndarray) -> float:

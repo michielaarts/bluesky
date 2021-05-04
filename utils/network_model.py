@@ -82,7 +82,11 @@ class NetworkModel(AnalyticalModel):
 
         # WR delay model.
         self.delays = self.delay_model(self.from_flow_rates)
-        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr = self.wr_model()
+        self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr, self.delay_wr = self.wr_model()
+
+        # WR conflict count model.
+        self.c_total_wr = self.wr_conflict_model()
+        self.dep = (self.c_total_wr / self.c_total_nr) - 1.
 
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -255,14 +259,14 @@ class NetworkModel(AnalyticalModel):
         delays[delays.isna()] = 0
         return delays
 
-    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         The delay model with conflict resolution.
         Calculates the mean velocity, instantaneous number of aircraft,
         and the mean flight time of the flows through an urban grid.
         If the delay model predicts an unstable system, the values are set to zero.
 
-        :return: (Mean velocity, No. Inst. A/C, Mean flight time, Flow rate)
+        :return: (Mean velocity, No. Inst. A/C, Mean flight time, Flow rate, Mean delay)
         """
         print('Calculating analytical WR model...')
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
@@ -281,12 +285,14 @@ class NetworkModel(AnalyticalModel):
 
         # Filter unstable values and set to zero.
         unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
-        wr_mean_v[unstable_filter] = 0
-        wr_ni[unstable_filter] = 0
-        wr_mean_flight_time[unstable_filter] = 0
+        wr_mean_v[unstable_filter] = np.nan
+        wr_ni[unstable_filter] = np.nan
+        wr_mean_flight_time[unstable_filter] = np.nan
         wr_flow_rate = wr_mean_v * wr_ni
 
-        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate
+        wr_delay = wr_mean_flight_time - self.mean_flight_time_nr
+
+        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate, wr_delay
 
     def wr_camda_model(self):
         """ Based on inst. no. of aircraft and CAMDA model """
