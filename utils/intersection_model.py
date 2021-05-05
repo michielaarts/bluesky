@@ -3,7 +3,7 @@ The analytical model class for a single orthogonal intersection.
 
 Created by Michiel Aarts, April 2021
 """
-from analytical import AnalyticalModel
+from utils.analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 from typing import Tuple
@@ -114,11 +114,24 @@ class IntersectionModel(AnalyticalModel):
             # Sanity check.
             raise NotImplementedError(f'Intersections with {len(nr_ni_per_section)} segments not implemented.')
 
+        # Turning traffic.
+        p_turn = np.array([[self.flow_ratio[2] / self.flow_ratio[0]],
+                           [self.flow_ratio[3] / self.flow_ratio[1]]])
+        lambda_d = np.array([self.from_flow_rates.loc['west', 'middle'] / self.speed,
+                             self.from_flow_rates.loc['south', 'middle'] / self.speed])
+        x = self.s_h * np.sqrt(2)
+        p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
+        n_total_flow = np.array([[self.flow_ratio[0] + self.flow_ratio[2]],
+                                 [self.flow_ratio[1] + self.flow_ratio[3]]]) * self.n_total
+        c_total_turn = np.sum(p_turn * p_dist * n_total_flow, axis=0)
+        self.n_total_flow = n_total_flow
+        self.c_total_turn = c_total_turn
+
         # Sum crossing conflicts / LoS.
         nr_li = nr_li_crossing  # + nr_li_self_interaction
         # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
         nr_ci = nr_ci_crossing
-        nr_ctotal = nr_ci * self.duration[1] / self.t_l
+        nr_ctotal = nr_ci * self.duration[1] / self.t_l + c_total_turn
         # Each conflict should result in a LoS.
         nr_lostotal = nr_ctotal
 
@@ -184,6 +197,11 @@ class IntersectionModel(AnalyticalModel):
             c_u = 1 / q_r
             y = q_g * t_x
             general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
+
+            # General turn delay.
+            delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
+            turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
+            general_delay += turn_delay[i, :]
 
             # Stochastic delay. --  Old version
             # stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
@@ -262,7 +280,7 @@ if __name__ == '__main__':
     T_L = 20.  # s
     SPEED = 10.
     DURATION = (900., 2700., 900.)
-    FLOW_RATIO = (0.6, 0.4, 0., 0.)
+    FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)
 
     ana_model = IntersectionModel(FLOW_RATIO, max_value=50, accuracy=50,
                                   duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)

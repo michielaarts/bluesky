@@ -11,11 +11,11 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
-from scn_reader import plot_flow_rates
+from utils.scn_reader import plot_flow_rates
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
-CRUISE_ALTITUDE = 50.  # ft
+CRUISE_ALTITUDE = 0.  # ft
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
 EXPONENTIAL = False

@@ -12,7 +12,6 @@ COLORS = ('green', 'royalblue', 'orchid')
 MARKER = 'x'
 ALPHA = 0.5
 LINESTYLE = 'None'
-LEGEND_ELEMENTS = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
 
 S_H = 50.  # m
 S_V = 25.  # ft
@@ -22,7 +21,7 @@ BUILD_UP_DURATION = 15 * 60.  # s
 EXPERIMENT_DURATION = 45 * 60.  # s
 COOL_DOWN_DURATION = 15 * 60.  # s
 DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-MAX_VALUE = 40.
+MAX_VALUE = 30.
 ACCURACY = 100
 
 MEAN_FLIGHT_TIME = 2000. / SPEED
@@ -60,17 +59,21 @@ if __name__ == '__main__':
     data, flow_ratios = load_files()
     models = load_analytical_models(flow_ratios)
 
+    legend_elements = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
+    legend_entries = ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios]
+    legend_loc = 'upper left'
+
     # NR conflict count.
     nr_conf_fig, nr_conf_ax = plt.subplots()
     for i in range(len(data)):
         nr_conf_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ntotal_conf'], label=None,
                         linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         nr_conf_ax.plot(models[i].n_inst, models[i].c_total_nr, label=None, color=COLORS[i])
-    nr_conf_ax.legend(LEGEND_ELEMENTS, ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios])
+    nr_conf_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_conf_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_conf_ax.set_ylabel('Total number of conflicts NR [-]')
     nr_conf_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
-    nr_conf_ax.set_ylim([-300/20, 300])
+    nr_conf_ax.set_ylim([-200/20, 200])
 
     # Delay.
     wr_delay_fig, wr_delay_ax = plt.subplots()
@@ -79,11 +82,11 @@ if __name__ == '__main__':
                          label=None, linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         wr_delay_ax.plot(models[i].n_inst_wr, models[i].delay_wr,
                          label=None, color=COLORS[i])
-    wr_delay_ax.legend(LEGEND_ELEMENTS, ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios])
+    wr_delay_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_delay_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     wr_delay_ax.set_ylabel('Mean intersection delay per vehicle [s]')
     wr_delay_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
-    wr_delay_ax.set_ylim([-10/20, 10])
+    wr_delay_ax.set_ylim([-5/20, 5])
 
     # Mean V.
     wr_v_fig, wr_v_ax = plt.subplots()
@@ -92,7 +95,7 @@ if __name__ == '__main__':
                      label=None, linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         wr_v_ax.plot(models[i].n_inst_wr, models[i].mean_v_wr,
                      label=None, color=COLORS[i])
-    wr_v_ax.legend(LEGEND_ELEMENTS, ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios])
+    wr_v_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_v_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     wr_v_ax.set_ylabel('Mean speed [m/s]')
     wr_v_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
@@ -105,9 +108,17 @@ if __name__ == '__main__':
                         linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         wr_conf_ax.plot(models[i].n_inst_wr, models[i].c_total_wr,
                         label=None, color=COLORS[i])
-    wr_conf_ax.legend(LEGEND_ELEMENTS, ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios])
+    wr_conf_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_conf_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     wr_conf_ax.set_ylabel('Total number of conflicts WR [-]')
     wr_conf_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
-    wr_conf_ax.set_ylim([-50, 1000])
+    wr_conf_ax.set_ylim([-400/20, 400])
 
+    # Save figures.
+    PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
+    # nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.eps', bbox_inches='tight')
+    # nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.png', bbox_inches='tight')
+    # wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.eps', bbox_inches='tight')
+    # wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.png', bbox_inches='tight')
+    # wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.eps', bbox_inches='tight')
+    # wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.png', bbox_inches='tight')

@@ -3,7 +3,7 @@ The analytical model class for an urban grid network.
 
 Created by Michiel Aarts, March 2021
 """
-from analytical import AnalyticalModel
+from utils.analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 import pickle as pkl

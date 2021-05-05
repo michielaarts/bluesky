@@ -1,11 +1,9 @@
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 import pickle as pkl
 from tkinter import Tk, filedialog
-from typing import List, Tuple
-from intersection_model import IntersectionModel
+from typing import Tuple
+from utils.intersection_model import IntersectionModel
 import re
 
 RES_FOLDER = Path(r'../output/RESULT/')
@@ -26,7 +24,7 @@ BUILD_UP_DURATION = 15 * 60.  # s
 EXPERIMENT_DURATION = 45 * 60.  # s
 COOL_DOWN_DURATION = 15 * 60.  # s
 DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-MAX_VALUE = 40.
+MAX_VALUE = 30.
 ACCURACY = 100
 
 MEAN_FLIGHT_TIME = 2000. / SPEED
@@ -101,10 +99,10 @@ if __name__ == '__main__':
             color=COLORS[0], label=None)
     ax.plot(model.n_inst_wr, model.delays.loc['south', 'middle'],
             color=COLORS[1], label=None)
-    ax.legend(LEGEND_ELEMENTS, LABELS)
+    ax.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
     ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     ax.set_ylabel('Mean delay per aircraft [s]')
     ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
-    ax.set_ylim([-10/20, 10])
+    ax.set_ylim([-5/20, 5])
     # fig.savefig(PAPER_FOLDER / 'flow_delay.png', bbox_inches='tight')
     # fig.savefig(PAPER_FOLDER / 'flow_delay.eps', bbox_inches='tight')

@@ -8,9 +8,9 @@ import scipy.optimize as opt
 from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
-from analytical import AnalyticalModel
-from network_model import NetworkModel
-from intersection_model import IntersectionModel
+from utils.analytical import AnalyticalModel
+from utils.network_model import NetworkModel
+from utils.intersection_model import IntersectionModel
 from plugins.urban import UrbanGrid
 
 # Standard inputs.
@@ -265,7 +265,7 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
     if intersection_run:
         urban_grid = None
         flow_ratio = result[all_runs[0]]['scn']['flow_ratio']
-        ana_model = IntersectionModel(flow_ratio=flow_ratio, max_value=40, accuracy=50,
+        ana_model = IntersectionModel(flow_ratio=flow_ratio, max_value=30, accuracy=50,
                                       duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
     else:
         max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
@@ -593,7 +593,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_full_54360604_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_final_54360604_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:

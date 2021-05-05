@@ -11,7 +11,7 @@ from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
 from plugins.urban import UrbanGrid
-from intersection_model import IntersectionModel
+from utils.intersection_model import IntersectionModel
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
@@ -320,14 +320,14 @@ class ScenarioGenerator:
 
 if __name__ == '__main__':
     # FLOW_RATIO = (EASTBOUND, NORTHBOUND, EAST-NORTH TURN, NORTH-EAST TURN).
-    FLOW_RATIO = (0.6, 0.4, 0.0, 0.0)  # Sum should be 1.
+    FLOW_RATIO = (0.8, 0.2, 0.0, 0.0)  # Sum should be 1.
     REPETITIONS = 10
 
     BUILD_UP_DURATION = 15 * 60.  # s
     EXPERIMENT_DURATION = 45 * 60.  # s
     COOL_DOWN_DURATION = 15 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'turn_exp'
+    PREFIX = 'final'
 
     SPEED = 10.  # m/s
 
