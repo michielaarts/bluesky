@@ -590,7 +590,7 @@ def estimate_accuracy(data: dict, ana_model: AnalyticalModel) -> pd.Series:
 
 
 if __name__ == '__main__':
-    use_pkl = True
+    use_pkl = False
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_final_54360604_NR.pkl')

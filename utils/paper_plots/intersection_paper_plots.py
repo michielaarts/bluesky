@@ -1,13 +1,12 @@
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tkinter import Tk, filedialog
 from typing import List, Tuple
-from intersection_model import IntersectionModel
+from utils.intersection_model import IntersectionModel
 import re
 
-RES_FOLDER = Path('../output/RESULT/')
+RES_FOLDER = Path('../../output/RESULT/')
 COLORS = ('green', 'royalblue', 'orchid')
 MARKER = 'x'
 ALPHA = 0.5
@@ -116,9 +115,9 @@ if __name__ == '__main__':
 
     # Save figures.
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
-    # nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.eps', bbox_inches='tight')
-    # nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.png', bbox_inches='tight')
-    # wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.eps', bbox_inches='tight')
-    # wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.png', bbox_inches='tight')
-    # wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.eps', bbox_inches='tight')
-    # wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.png', bbox_inches='tight')
+    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.eps', bbox_inches='tight')
+    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.png', bbox_inches='tight')
+    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.eps', bbox_inches='tight')
+    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.png', bbox_inches='tight')
+    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.eps', bbox_inches='tight')
+    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.png', bbox_inches='tight')

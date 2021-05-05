@@ -15,7 +15,7 @@ class IntersectionModel(AnalyticalModel):
             self,
             flow_ratio: Tuple[float, float, float, float], max_value: float,
             accuracy: int, duration: Tuple[float, float, float],
-            speed: float, s_h: float, s_v: float, t_l: float,
+            speed: float, s_h: float, s_v: float, t_l: float, turn_model: bool=False
     ):
         """
         Class for the analytical conflict count and delay models for a single intersection.
@@ -29,6 +29,7 @@ class IntersectionModel(AnalyticalModel):
         :param s_h: horizontal separation distance [m]
         :param s_v: vertical separation distance [ft]
         :param t_l: look-ahead time [s]
+        :param turn_model: Whether or not to include the turn model [bool]
         """
         super().__init__()
 
@@ -41,6 +42,7 @@ class IntersectionModel(AnalyticalModel):
         self.s_h = s_h
         self.s_v = s_v * ft  # m
         self.t_l = t_l
+        self.turn_model = turn_model
 
         self.cruise_alt = 0. * ft  # m
         self.departure_alt = 0. * ft  # m
@@ -114,18 +116,21 @@ class IntersectionModel(AnalyticalModel):
             # Sanity check.
             raise NotImplementedError(f'Intersections with {len(nr_ni_per_section)} segments not implemented.')
 
-        # Turning traffic.
-        p_turn = np.array([[self.flow_ratio[2] / self.flow_ratio[0]],
-                           [self.flow_ratio[3] / self.flow_ratio[1]]])
-        lambda_d = np.array([self.from_flow_rates.loc['west', 'middle'] / self.speed,
-                             self.from_flow_rates.loc['south', 'middle'] / self.speed])
-        x = self.s_h * np.sqrt(2)
-        p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
-        n_total_flow = np.array([[self.flow_ratio[0] + self.flow_ratio[2]],
-                                 [self.flow_ratio[1] + self.flow_ratio[3]]]) * self.n_total
-        c_total_turn = np.sum(p_turn * p_dist * n_total_flow, axis=0)
-        self.n_total_flow = n_total_flow
-        self.c_total_turn = c_total_turn
+        if self.turn_model:
+            # Turning traffic.
+            p_turn = np.array([[self.flow_ratio[2] / self.flow_ratio[0]],
+                               [self.flow_ratio[3] / self.flow_ratio[1]]])
+            lambda_d = np.array([self.from_flow_rates.loc['west', 'middle'] / self.speed,
+                                 self.from_flow_rates.loc['south', 'middle'] / self.speed])
+            x = self.s_h * np.sqrt(2)
+            p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
+            n_total_flow = np.array([[self.flow_ratio[0] + self.flow_ratio[2]],
+                                     [self.flow_ratio[1] + self.flow_ratio[3]]]) * self.n_total
+            c_total_turn = np.sum(p_turn * p_dist * n_total_flow, axis=0)
+            self.n_total_flow = n_total_flow
+            self.c_total_turn = c_total_turn
+        else:
+            c_total_turn = 0
 
         # Sum crossing conflicts / LoS.
         nr_li = nr_li_crossing  # + nr_li_self_interaction
@@ -198,10 +203,11 @@ class IntersectionModel(AnalyticalModel):
             y = q_g * t_x
             general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
-            # General turn delay.
-            delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
-            turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
-            general_delay += turn_delay[i, :]
+            if self.turn_model:
+                # General turn delay.
+                delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
+                turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
+                general_delay += turn_delay[i, :]
 
             # Stochastic delay. --  Old version
             # stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
@@ -212,7 +218,11 @@ class IntersectionModel(AnalyticalModel):
             stochastic_delay = stochastic_y * stochastic_y / (2 * q_g * (1 - stochastic_y))
 
             # If intersection unstable, set delay very large.
-            general_delay[total_y >= 1] = 1E5
+            if isinstance(general_delay, pd.Series):
+                general_delay[total_y >= 1] = 1E5
+            else:
+                if total_y.iloc[0] >= 1:
+                    general_delay = 1E5
 
             # Add to delays df.
             delays.loc[(from_nodes[i], 'middle')] = general_delay + stochastic_delay

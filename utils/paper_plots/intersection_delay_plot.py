@@ -6,7 +6,7 @@ from typing import Tuple
 from utils.intersection_model import IntersectionModel
 import re
 
-RES_FOLDER = Path(r'../output/RESULT/')
+RES_FOLDER = Path(r'../../output/RESULT/')
 PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
 COLORS = ('green', 'firebrick')
