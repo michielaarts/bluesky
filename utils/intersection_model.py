@@ -106,12 +106,11 @@ class IntersectionModel(AnalyticalModel):
         conf_area = 2 * self.s_h * conf_vrel * self.t_l
         isct_area = 4 * np.power(self.section_length, 2)
 
-        ni_per_hdg = (nr_ni_per_section.join(self.from_flow_hdg)
-                      .groupby('hdg').sum())
-        if len(nr_ni_per_section) == 4:
+        upstream_nr_ni = nr_ni_per_section.loc[nr_ni_per_section.index.get_level_values('to') == 'middle']
+        if len(upstream_nr_ni) == 2:
             # Regular intersection node.
-            nr_li_crossing = ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * los_area / isct_area
-            nr_ci_crossing = ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * conf_area / isct_area
+            nr_li_crossing = 4 * upstream_nr_ni.iloc[0] * upstream_nr_ni.iloc[1] * los_area / isct_area
+            nr_ci_crossing = 4 * upstream_nr_ni.iloc[0] * upstream_nr_ni.iloc[1] * conf_area / isct_area
         else:
             # Sanity check.
             raise NotImplementedError(f'Intersections with {len(nr_ni_per_section)} segments not implemented.')
