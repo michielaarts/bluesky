@@ -104,5 +104,7 @@ if __name__ == '__main__':
     ax.set_ylabel('Mean delay per aircraft [s]')
     ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
     ax.set_ylim([-5/20, 5])
-    # fig.savefig(PAPER_FOLDER / 'flow_delay.png', bbox_inches='tight')
-    # fig.savefig(PAPER_FOLDER / 'flow_delay.eps', bbox_inches='tight')
+
+    fr_string = ''.join(str(round(flow * 100)).zfill(2) for flow in flow_ratio)
+    fig.savefig(PAPER_FOLDER / f'flow_delay_{fr_string}.png', bbox_inches='tight')
+    fig.savefig(PAPER_FOLDER / f'flow_delay_{fr_string}.eps', bbox_inches='tight')

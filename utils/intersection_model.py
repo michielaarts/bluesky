@@ -15,7 +15,7 @@ class IntersectionModel(AnalyticalModel):
             self,
             flow_ratio: Tuple[float, float, float, float], max_value: float,
             accuracy: int, duration: Tuple[float, float, float],
-            speed: float, s_h: float, s_v: float, t_l: float, turn_model: bool=False
+            speed: float, s_h: float, s_v: float, t_l: float, turn_model: bool = False
     ):
         """
         Class for the analytical conflict count and delay models for a single intersection.
