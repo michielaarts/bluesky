@@ -31,11 +31,12 @@ class AnalyticalModel:
 
         # Back-end variables
         self.flow_proportion = None
-        self.n_inst_da = None  # Departure / arrival n_inst
         self.flow_rates = None  # veh / s
         self.departure_rate = None  # veh / s
+        self.departure_rate_per_node = None  # veh / s
         self.arrival_rate = None  # By definition, for a stable system
         self.from_flow_rates = None  # veh / s
+        self.extended_from_flow_rates = None  # veh / s
         self.from_flow_hdg = None  # veh / s
 
         # NR conflict model.
@@ -78,7 +79,7 @@ class AnalyticalModel:
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pass
 
-    def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
+    def delay_model(self) -> pd.DataFrame:
         pass
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

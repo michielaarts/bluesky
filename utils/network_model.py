@@ -3,15 +3,15 @@ The analytical model class for an urban grid network.
 
 Created by Michiel Aarts, March 2021
 """
-from utils.analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 import pickle as pkl
 import scipy.optimize as opt
 from typing import Tuple
-from plugins.urban import UrbanGrid
 from pathlib import Path
-from scn_reader import plot_flow_rates
+from plugins.urban import UrbanGrid
+from utils.analytical import AnalyticalModel
+from utils.scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm, ft
 
 # Vertical speed depends on the steepness used in bluesky/traffic/autopilot.py, adjust accordingly.
@@ -66,29 +66,25 @@ class NetworkModel(AnalyticalModel):
     def calculate_models(self):
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
-        self.flow_proportion = self.expand_flow_proportion()
         self.flow_rates = self.determine_flow_rates()  # veh / s
-        self.departure_rate = self.n_inst / self.mean_flight_time_nr  # veh / s
+        self.departure_rate = pd.Series(self.n_inst / self.mean_flight_time_nr, index=self.n_inst)  # veh / s
+        self.departure_rate_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
         self.arrival_rate = self.departure_rate  # By definition, for a stable system
-        self.from_flow_rates = self.determine_from_flow_rates(self.flow_rates)  # veh / s
-
-        # Instantaneous no. of departure / arrival aircraft.
-        self.n_inst_da = (self.n_inst * self.flow_proportion.where(
-            (self.flow_proportion.index.get_level_values('from') == 'departure')
-            | (self.flow_proportion.index.get_level_values('via') == 'arrival')).sum())
+        self.from_flow_rates = self.determine_from_flow_rates()  # veh / s
+        self.extended_from_flow_rates = self.determine_extended_from_flow_rates()  # veh / s
 
         # NR conflict count model.
-        self.c_inst_nr, self.los_inst_nr = self.nr_model()
+        self.c_inst_nr, self.los_inst_nr, self.c_total_nr, self.los_total_nr = self.nr_model()
 
         # WR delay model.
-        self.delays = self.delay_model(self.from_flow_rates)
+        self.delays = self.delay_model()
         self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr, self.delay_wr = self.wr_model()
 
         # WR conflict count model.
         self.c_total_wr = self.wr_conflict_model()
         self.dep = (self.c_total_wr / self.c_total_nr) - 1.
 
-    def nr_model(self) -> Tuple[np.ndarray, np.ndarray]:
+    def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         The conflict count model without conflict resolution.
         Calculates the instantaneous number of conflicts and losses of separation,
@@ -97,8 +93,9 @@ class NetworkModel(AnalyticalModel):
         :return: (Inst. no. of conflicts, Inst. no. of LoS)
         """
         print('Calculating analytical NR model...')
-        # Self interaction (LoS only). TODO: Include departing traffic?
         nr_ni_per_section = self.urban_grid.grid_height / self.speed * self.from_flow_rates.copy()
+
+        # Self interaction (LoS only).
         nr_li_si_per_section = 0. * nr_ni_per_section.copy()
         for n in range(2, 100):
             poisson_prob_per_section = nr_ni_per_section.pow(n) * np.exp(-nr_ni_per_section) / np.math.factorial(n)
@@ -118,49 +115,51 @@ class NetworkModel(AnalyticalModel):
         border_isct_area = 2 * np.power(self.urban_grid.grid_height, 2)
         regular_isct_area = 4 * np.power(self.urban_grid.grid_height, 2)
 
-        # Obtain headings per intersection.
+        # Obtain index arrays.
         from_idx = nr_ni_per_section.index.get_level_values('from')
         via_idx = nr_ni_per_section.index.get_level_values('via')
-        hdg = (self.urban_grid.flow_df['from_hdg']
-               .groupby(['from', 'via']).mean()
-               .reindex_like(nr_ni_per_section))
 
         # Loop over all intersections.
         nr_li_crossing = 0. * nr_li_self_interaction.copy()
         nr_ci_crossing = 0. * nr_li_self_interaction.copy()
         for isct in self.urban_grid.isct_nodes:
-            isct_ni = nr_ni_per_section[(from_idx == isct) | (via_idx == isct)].copy()
-            isct_hdg = hdg[(from_idx == isct) | (via_idx == isct)].copy()
-            ni_per_hdg = (isct_ni.join(isct_hdg)
-                          .groupby('from_hdg').sum())
-            if len(ni_per_hdg) != 2:
-                # Sanity check.
-                raise NotImplementedError(f'Intersections with {len(ni_per_hdg)} headings not implemented.')
+            isct_ni = nr_ni_per_section[(from_idx == isct) | (via_idx == isct)]
+            upstream_ni = nr_ni_per_section[via_idx == isct]
             if len(isct_ni) == 2:
                 # Corner node, skip.
                 continue
             elif len(isct_ni) == 3:
                 # Border intersection node.
-                nr_li_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * los_area / border_isct_area
-                nr_ci_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * conf_area / border_isct_area
+                if len(upstream_ni) == 2:
+                    # 2 flows merging into 1.
+                    # In no. of conflicts equivalent to a regular intersection node.
+                    combinations = 2 * upstream_ni.iloc[0] * upstream_ni.iloc[1]
+                    nr_li_crossing += combinations * los_area / border_isct_area
+                    nr_ci_crossing += combinations * conf_area / border_isct_area
+                # Else: 1 flow separating into 2 flows: Only turning conflicts.
             elif len(isct_ni) == 4:
                 # Regular intersection node.
-                nr_li_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * los_area / regular_isct_area
-                nr_ci_crossing += ni_per_hdg.iloc[0] * ni_per_hdg.iloc[1] * conf_area / regular_isct_area
+                combinations = 4 * upstream_ni.iloc[0] * upstream_ni.iloc[1]
+                nr_li_crossing += combinations * los_area / regular_isct_area
+                nr_ci_crossing += combinations * conf_area / regular_isct_area
             else:
                 # Sanity check.
                 raise NotImplementedError(f'Intersections with {len(isct_ni)} segments not implemented.')
 
         # Sum self interaction and crossing conflicts / LoS.
         nr_li = nr_li_crossing + nr_li_self_interaction
-        # Self interaction with equal speeds must be a LoS. Therefore, ci_self_interaction = departing traffic only.
+        # Self interaction with equal speeds must be a LoS.
         nr_ci = nr_ci_crossing
+        # Calculate total using mean conflict duration of lookahead time.
+        nr_ctotal = nr_ci * self.duration[1] / self.t_l
+        # Each conflict should result in a LoS.
+        nr_lostotal = nr_ctotal
 
-        return nr_ci, nr_li
+        return nr_ci, nr_li, nr_ctotal, nr_lostotal
 
     def determine_flow_rates(self) -> pd.DataFrame:
         """
-        Determines flow rates through the UrbanGrid for each n_inst.
+        Calculates (from, via, to) flow rates based on flow proportion.
 
         :return: Flow rates dataframe
         """
@@ -170,73 +169,72 @@ class NetworkModel(AnalyticalModel):
             flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
         return flow_rates
 
-    def determine_from_flow_rates(self, flow_df) -> pd.DataFrame:
+    def determine_from_flow_rates(self) -> pd.DataFrame:
         """
-        Groups flow rates based on from and via nodes, to obtain the 'from flow'-rates.
+        Determines the flow rates in each section of the grid.
 
-        :param flow_df: Flow rates dataframe.
         :return: From flow rates dataframe
         """
-        from_flows = flow_df.groupby(['from', 'via']).sum()
+        from_flow_rates = pd.DataFrame(index=self.urban_grid.from_flow_df.index, columns=self.n_inst)
+        for ni in self.n_inst:
+            passage_rate = ni * self.speed / self.urban_grid.grid_height
+            from_flow_rates[ni] = self.urban_grid.from_flow_df['flow_distribution'] * passage_rate
+        return from_flow_rates
 
-        departure_flows = pd.DataFrame(
-            index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes],
-            columns=from_flows.columns)
-        departure_rate_per_node = self.departure_rate / len(self.urban_grid.od_nodes)
-        data = np.ones(departure_flows.shape) * departure_rate_per_node
-        departure_flows = pd.DataFrame(data, index=departure_flows.index, columns=departure_flows.columns)
-
-        from_flows = from_flows.append(departure_flows)
-        return from_flows
-
-    def expand_flow_proportion(self) -> pd.Series:
+    def determine_extended_from_flow_rates(self) -> pd.DataFrame:
         """
-        Extracts the flow proportion from the UrbanGrid and adds the departure and arrival proportions.
-        Sum of flow proportion should be 1.
+        Appends the departure rates to the from flow df.
 
-        :return: Flow proportion dataframe
+        :return: extended from flows dataframe
         """
-        from_proportion = self.urban_grid.flow_df['flow_distribution'].groupby(['from', 'via']).sum()
-        departure_proportion = self.urban_grid.flow_df['origin_distribution'].mean()
-        arrival_proportion = self.urban_grid.flow_df['destination_distribution'].mean()
-        departure_flows = pd.Series(departure_proportion,
-                                    index=[['departure'] * len(self.urban_grid.od_nodes), self.urban_grid.od_nodes])
-        arrival_flows = pd.Series(arrival_proportion,
-                                  index=[self.urban_grid.od_nodes, ['arrival'] * len(self.urban_grid.od_nodes)])
-        return from_proportion.append(departure_flows).append(arrival_flows)
+        departure_index = pd.MultiIndex.from_frame(pd.DataFrame({'from': ['departure'] * len(self.urban_grid.od_nodes),
+                                                                 'via': self.urban_grid.od_nodes}))
+        departure_df = pd.DataFrame(index=departure_index, columns=self.n_inst)
+        for i in range(len(departure_index)):
+            departure_df.iloc[i] = self.departure_rate_per_node
+        ff_df = self.from_flow_rates.append(departure_df)
+        return ff_df
 
-    def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
+    def delay_model(self) -> pd.DataFrame:
         """
-        Calculates the delay per vehicle at each node for the provided from_flow dataframe.
+        Calculates the delay per vehicle at each node for the extended from_flow dataframe.
+
+        Delay model has two parts:
+        1) departure separation (within flow).
+        2) intersection separation (between flows).
 
         :param flow_df: a from_flow dataframe (from e.g. determine_from_flow_rates())
         :return: Delay dataframe
         """
-        delays = pd.DataFrame().reindex_like(flow_df)
+        delays = pd.DataFrame().reindex_like(self.extended_from_flow_rates)
+        delays[:] = 0.
+
+        # Obtain via index array.
+        via_idx = self.extended_from_flow_rates.index.get_level_values('via')
 
         # Delay model.
         for node in self.urban_grid.all_nodes:
-            if node in self.urban_grid.od_nodes:
-                # Time to merge an altitude layer [s].
-                # TODO: does the s_v corner of the disc play a role here?
-                t_x = self.s_h / self.speed
-            else:
-                # Time to cross an intersection [s]. Change sqrt(2) if angle between airways is not 90 degrees.
-                t_x = self.s_h * np.sqrt(2) / self.speed
-            node_flows = flow_df.iloc[
-                flow_df.index.get_level_values('via') == node
-            ].copy()
+            node_flows = self.extended_from_flow_rates.iloc[via_idx == node]
             from_nodes = node_flows.index.get_level_values('from').unique()
-            if len(from_nodes) == 1:
-                # Border node, no intersection. Skip.
-                continue
-            elif len(from_nodes) != 2:
-                # Sanity check.
-                raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', node_flows)
-
+            if node in self.urban_grid.od_nodes:
+                # Departure separation: time to merge into an airway [s].
+                t_x = self.s_h / self.speed
+                # Append departure flow rate.
+                node_flows = node_flows.append(self.departure_rate_per_node, ignore_index=True)
+                from_nodes = [from_nodes[0], 'departure']
+            else:
+                # Intersection separation: Time to cross an intersection [s].
+                # Change sqrt(2) if angle between airways is not 90 degrees.
+                t_x = self.s_h * np.sqrt(2) / self.speed
+                if len(from_nodes) == 1:
+                    # Border node, no intersection. No delay.
+                    continue
+                elif len(from_nodes) != 2:
+                    # Sanity check.
+                    raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', node_flows)
+            # Loop through both upstream flows.
             total_q = node_flows.sum()
             total_y = total_q * t_x
-            total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
             for (i, j) in [(1, 0), (0, 1)]:
                 # General delay.
                 q_g = node_flows.iloc[i].squeeze()
@@ -247,16 +245,15 @@ class NetworkModel(AnalyticalModel):
                 general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
                 # Stochastic delay.
-                stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
-                stochastic_delay = total_stochastic_delay - stochastic_flow_delay
+                stochastic_y = q_g * general_delay
+                stochastic_delay = stochastic_y * stochastic_y / (2 * q_g * (1 - stochastic_y))
 
                 # If intersection unstable, set delay very large.
-                stochastic_delay[total_y >= 1] = 1E5
+                general_delay[total_y >= 1] = 1E5
 
                 # Add to delays df.
-                delays.loc[(from_nodes[i], node)] = general_delay + stochastic_delay
+                delays.loc[(from_nodes[i], node)] += general_delay + stochastic_delay
 
-        delays[delays.isna()] = 0
         return delays
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -271,16 +268,22 @@ class NetworkModel(AnalyticalModel):
         print('Calculating analytical WR model...')
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
 
+        section_index = self.delays.index.get_level_values('from') != 'departure'
+        section_delays = self.delays.loc[section_index].copy()
+        departure_delays = self.delays.loc[~section_index].copy()
+
+        # Section delays.
         nr_flight_time_per_section = self.urban_grid.grid_height / self.speed
-        wr_flight_time_per_section = self.delays.copy() + nr_flight_time_per_section
-        wr_flight_time_per_section = wr_flight_time_per_section[
-            wr_flight_time_per_section.index.get_level_values('from') != 'departure'
-        ]
+        wr_flight_time_per_section = section_delays + nr_flight_time_per_section
         wr_v_per_section = self.urban_grid.grid_height / wr_flight_time_per_section
-        wr_separation_per_section = wr_v_per_section / self.from_flow_rates
-        wr_ni_per_section = self.urban_grid.grid_height / wr_separation_per_section
-        wr_ni = wr_ni_per_section.sum() + self.n_inst_da
-        wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
+        wr_ni_per_section = self.extended_from_flow_rates.loc[section_index] * wr_flight_time_per_section
+
+        # Departure delays.
+        wr_ni_per_departure = self.extended_from_flow_rates.loc[~section_index] * departure_delays
+
+        # Sum sections and departure inst. no. of aircraft.
+        wr_ni = wr_ni_per_section.sum() + wr_ni_per_departure.sum()
+        wr_mean_v = (wr_v_per_section * wr_ni_per_section).sum() / wr_ni  # Departing aircraft have mean_v = 0.
         wr_mean_flight_time = self.mean_route_length / wr_mean_v
 
         # Filter unstable values and set to zero.
@@ -306,17 +309,17 @@ class NetworkModel(AnalyticalModel):
 
     def wr_conflict_model(self) -> np.ndarray:
         """ Based on local flow rates and delay """
-        vehicle_delay_per_second = self.delays * self.from_flow_rates
+        vehicle_delay_per_second = self.delays * self.extended_from_flow_rates
         vd_via_idx = vehicle_delay_per_second.index.get_level_values('via')
-        ff_via_idx = self.from_flow_rates.index.get_level_values('via')
+        ff_via_idx = self.extended_from_flow_rates.index.get_level_values('via')
         additional_conflicts_per_second = pd.Series(0, index=self.n_inst)
         for node in self.urban_grid.all_nodes:
-            # Loop over all intersections.
+            # Loop over all nodes.
             node_delays_per_second = vehicle_delay_per_second[vd_via_idx == node].copy()
-            node_from_flows = self.from_flow_rates[ff_via_idx == node].copy()
+            node_from_flows = self.extended_from_flow_rates[ff_via_idx == node].copy()
             node_from_flows_reversed = node_from_flows.copy().iloc[-1::-1]
             if len(node_delays_per_second) == 1:
-                # Corner intersection, skip.
+                # Border node with no delay, skip.
                 continue
             elif len(node_delays_per_second) == 2:
                 # Regular intersection.
@@ -337,13 +340,13 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../scenario/URBAN/Data/medium_ql_urban_grid.pkl')
+    pkl_file = Path(r'../scenario/URBAN/Data/final_grid_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 
     plot_flow_rates(grid.flow_df)
 
-    ana_model = NetworkModel(grid, max_value=300, accuracy=50,
+    ana_model = NetworkModel(grid, max_value=100, accuracy=50,
                              duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
 
     ana_model.plot_mfd()

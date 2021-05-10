@@ -77,6 +77,7 @@ class UrbanGrid(Entity):
         self.max_lon = None
         self.area = (self.n_rows - 1) * self.grid_height * (self.n_cols - 1) * self.grid_width
 
+        self.route_accuracy = 1E4
         self._paths = None
         self._pathlengths = None
         self._calculated_mean_route_length = None
@@ -344,10 +345,10 @@ class UrbanGrid(Entity):
 
         :return:
         """
-        num_iterations = int(1E4)
+        num_iterations = int(self.route_accuracy)
         paths = np.zeros(num_iterations, dtype=object)
         pathlengths = np.zeros(num_iterations, dtype=float)
-        for i in range(len(pathlengths)):
+        for i in range(num_iterations):
             origin = random.choice(self.od_nodes)
             destination = origin
             while destination == origin:

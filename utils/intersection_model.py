@@ -50,6 +50,10 @@ class IntersectionModel(AnalyticalModel):
         self.section_length = self.mean_route_length / 2  # m.
         self.mean_flight_time_nr = self.mean_route_length / self.speed
 
+        # Turn variables.
+        self.n_total_flow = 0
+        self.c_total_turn = 0
+
         # Initiate arrays.
         self.n_inst = np.linspace(1, self.max_value, self.accuracy)
 
@@ -68,7 +72,7 @@ class IntersectionModel(AnalyticalModel):
         self.c_inst_nr, self.los_inst_nr, self.c_total_nr, self.los_total_nr = self.nr_model()
 
         # WR delay model.
-        self.delays = self.delay_model(self.from_flow_rates)
+        self.delays = self.delay_model()
         self.mean_v_wr, self.n_inst_wr, self.mean_flight_time_wr, self.flow_rate_wr, self.delay_wr = self.wr_model()
 
         # WR conflict count model.
@@ -173,26 +177,26 @@ class IntersectionModel(AnalyticalModel):
         hdg = pd.Series([90, 0, 90, 0], index=sections, name='hdg', dtype=float)
         return from_flows, hdg
 
-    def delay_model(self, flow_df: pd.DataFrame) -> pd.DataFrame:
+    def delay_model(self) -> pd.DataFrame:
         """
         Calculates the delay per vehicle at each node for the provided from_flow dataframe.
+
+        Delay model has two parts:
+        1) departure separation (within flow).
+        2) intersection separation (between flows).
+        Departure separation is performed in the scenario generator.
 
         :param flow_df: a from_flow dataframe (from e.g. determine_from_flow_rates())
         :return: Delay dataframe
         """
-        delays = pd.DataFrame().reindex_like(flow_df)
-        # Delay model has two parts:
-        # 1) departure separation (within flow).
-        # 2) intersection separation (between flows).
-        # Departure separation is performed in the scenario generator.
+        delays = pd.DataFrame().reindex_like(self.from_flow_rates)
 
         # Intersection separation.
         t_x = self.s_h * np.sqrt(2) / self.speed  # Time to cross an intersection [s].
-        approach_flows = flow_df.loc[flow_df.index.get_level_values('to') == 'middle'].copy()
+        approach_flows = self.from_flow_rates.loc[self.from_flow_rates.index.get_level_values('to') == 'middle'].copy()
         from_nodes = approach_flows.index.get_level_values('from')
         total_q = approach_flows.sum()
         total_y = total_q * t_x
-        total_stochastic_delay = total_y * total_y / (2 * total_q * (1 - total_y))
         for (i, j) in [(1, 0), (0, 1)]:
             # General delay.
             q_g = approach_flows.iloc[i].squeeze()
@@ -208,11 +212,7 @@ class IntersectionModel(AnalyticalModel):
                 turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
                 general_delay += turn_delay[i, :]
 
-            # Stochastic delay. --  Old version
-            # stochastic_flow_delay = y * y / (2 * q_g * (1 - y))
-            # stochastic_delay = total_stochastic_delay - stochastic_flow_delay
-
-            # Stochastic delay V2.
+            # Stochastic delay.
             stochastic_y = q_g * general_delay
             stochastic_delay = stochastic_y * stochastic_y / (2 * q_g * (1 - stochastic_y))
 
@@ -247,8 +247,7 @@ class IntersectionModel(AnalyticalModel):
         nr_flight_time_per_section = self.section_length / self.speed
         wr_flight_time_per_section = self.delays.copy() + nr_flight_time_per_section
         wr_v_per_section = self.section_length / wr_flight_time_per_section
-        wr_separation_per_section = wr_v_per_section / self.from_flow_rates
-        wr_ni_per_section = self.section_length / wr_separation_per_section
+        wr_ni_per_section = self.from_flow_rates.loc[self.delays.index] * wr_flight_time_per_section
         wr_ni = wr_ni_per_section.sum()
         wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
         wr_mean_flight_time = self.mean_route_length / wr_mean_v
