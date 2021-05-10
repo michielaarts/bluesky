@@ -81,6 +81,7 @@ class UrbanGrid(Entity):
         self._pathlengths = None
         self._calculated_mean_route_length = None
         self._flow_df = None
+        self._from_flow_df = None
 
         self.create_nodes()
         self.load_edges()
@@ -364,7 +365,7 @@ class UrbanGrid(Entity):
         :return: Mean route length [m]
         """
         if self._calculated_mean_route_length is None:
-            print('Urban.py>>>Calculating mean route length. This may take >1min.')
+            print('Urban.py>>>Calculating mean route length. This may take some time.')
             self._evaluate_routes()
             print('Urban.py>>>Mean route length obtained.')
         return self._calculated_mean_route_length
@@ -374,17 +375,11 @@ class UrbanGrid(Entity):
         Creates a flow dataframe, to use as a base for flow rate calculations.
         It expresses the mean expected total passages of a node per single aircraft.
         To convert to a flow rate, the airspeed and n_inst are required.
-        Note: takes a significant amount of time (>5 mins).
 
         :return: None
         """
         all_angles = np.array(range(5)) * 90
-        index_df = pd.MultiIndex.from_frame(pd.DataFrame({'from': [], 'via': [], 'to': []}))
-        routing_df = pd.DataFrame({'num': [], 'corner': [], 'from_hdg': [], 'to_hdg': [], 'lat': [], 'lon': []},
-                                  index=index_df)
-        od_index = pd.Index(self.od_nodes)
-        od_df = pd.DataFrame({'origin': np.zeros(len(od_index)), 'destination': np.zeros(len(od_index))},
-                             index=od_index)
+        routing_dict = {}
 
         # Get paths.
         if self._paths is None:
@@ -394,10 +389,10 @@ class UrbanGrid(Entity):
         found_paths = set()
         for path in self._paths:
             for i in range(len(path) - 2):
-                # Does not include origin and destination passages of nodes.
+                # Does not include origin and destination passages of nodes in via.
                 frm, via, to = path[i:i + 3]
                 if (frm, via, to) in found_paths:
-                    routing_df.loc[(frm, via, to)]['num'] += 1
+                    routing_dict[(frm, via, to)]['num'] += 1
                 else:
                     # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
                     found_paths.add((frm, via, to))
@@ -418,21 +413,17 @@ class UrbanGrid(Entity):
                         corner = True
                     else:
                         corner = False
-                    routing_df.loc[(frm, via, to)] = {'num': 1, 'corner': corner, 'from_hdg': frm_hdg, 'to_hdg': to_hdg,
-                                                      'lat': via_node['lat'], 'lon': via_node['lon']}
-            # Add origins and destinations to od_df.
-            od_df.loc[path[0]]['origin'] += 1
-            od_df.loc[path[-1]]['destination'] += 1
+                    routing_dict[(frm, via, to)] = {'num': 1, 'corner': corner, 'from_hdg': frm_hdg, 'to_hdg': to_hdg,
+                                                    'lat': via_node['lat'], 'lon': via_node['lon']}
 
-        # Normalize values.
-        total_values = routing_df['num'].sum() + od_df.to_numpy().sum()
-        routing_df['flow_distribution'] = routing_df['num'] / total_values
-        od_df['origin_distribution'] = od_df['origin'] / total_values
-        od_df['destination_distribution'] = od_df['destination'] / total_values
+        # Convert to df.
+        routing_df = pd.DataFrame.from_dict(routing_dict, orient='index')
+        routing_df.index = routing_df.index.rename(['from', 'via', 'to'])
 
-        # Add od distribution to df.
-        flow_df = routing_df.merge(od_df, how='left', left_on='via', right_index=True)
-        self._flow_df = flow_df
+        # Normalize to obtain distribution.
+        routing_df['flow_distribution'] = routing_df['num'] / routing_df['num'].sum()
+
+        self._flow_df = routing_df
 
     @property
     def flow_df(self) -> pd.DataFrame:
@@ -442,7 +433,66 @@ class UrbanGrid(Entity):
         :return: the flow distribution dataframe
         """
         if self._flow_df is None:
-            print('Urban.py>>>Calculating flow dataframe. This may take >5 mins.')
+            print('Urban.py>>>Calculating flow dataframe.')
             self._create_flow_df()
             print('Urban.py>>>Flow dataframe obtained.')
         return self._flow_df
+
+    def _create_from_flow_df(self) -> None:
+        """
+        Creates a from_flow dataframe.
+        It expresses the proportion of the passages of a section compared to other sections.
+        Sum of proportion = 1.
+        To convert to a flow rate, the airspeed and n_inst are required.
+
+        :return: None
+        """
+        all_angles = np.array(range(5)) * 90
+        ff_dict = {}
+
+        # Get paths.
+        if self._paths is None:
+            self._evaluate_routes()
+
+        # Loop through paths.
+        found_sections = set()
+        for path in self._paths:
+            for i in range(len(path) - 1):
+                # Does not include origin and destination passages of nodes in via.
+                frm, via = path[i:i + 2]
+                if (frm, via) in found_sections:
+                    ff_dict[(frm, via)]['num'] += 1
+                else:
+                    # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
+                    found_sections.add((frm, via))
+                    frm_node = self.nodes[frm]
+                    via_node = self.nodes[via]
+                    qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
+                                         via_node['lat'], via_node['lon'])
+                    hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
+                    if hdg == 360:
+                        hdg = 0.
+
+                    ff_dict[(frm, via)] = {'num': 1, 'hdg': hdg}
+
+        # Convert to dataframe.
+        ff_df = pd.DataFrame.from_dict(ff_dict, orient='index')
+        ff_df.index = ff_df.index.rename(['from', 'via'])
+
+        # Normalize to obtain distribution.
+        ff_df['flow_distribution'] = ff_df['num'] / ff_df['num'].sum()
+
+        self._from_flow_df = ff_df
+
+    @property
+    def from_flow_df(self) -> pd.DataFrame:
+        """
+        Getter for the from_flow distribution dataframe.
+
+        :return: the from_flow distribution dataframe
+        """
+        if self._from_flow_df is None:
+            print('Urban.py>>>Calculating from_flow dataframe.')
+            self._create_from_flow_df()
+            print('Urban.py>>>From flow dataframe obtained.')
+        return self._from_flow_df

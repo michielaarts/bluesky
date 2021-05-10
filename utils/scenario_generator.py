@@ -309,9 +309,9 @@ class ScenarioGenerator:
 
     def save_urban_grid(self, prefix: str = '', pkl_path: Path = Path('../scenario/URBAN/Data/')) -> None:
         """ Save urban grid to .pkl file. """
-        # Ensure flow df is evaluated.
-        # Note: this may take >5 mins.
+        # Ensure flow dfs are evaluated.
         _ = self.urban_grid.flow_df
+        _ = self.urban_grid.from_flow_df
 
         # Save to pickle.
         pkl_file = f'{prefix}_urban_grid.pkl'
@@ -321,14 +321,14 @@ class ScenarioGenerator:
 
 
 if __name__ == '__main__':
-    N_INST = np.array([10, 35, 60, 85, 110])
-    REPETITIONS = 2
+    N_INST = np.linspace(6, 60, 10)
+    REPETITIONS = 10
 
     BUILD_UP_DURATION = 900.  # s
     EXPERIMENT_DURATION = 2700.  # s
     COOL_DOWN_DURATION = 900.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'medium_ql'
+    PREFIX = 'final_grid'
 
     N_ROWS = 7
     N_COLS = N_ROWS
