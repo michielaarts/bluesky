@@ -463,7 +463,6 @@ class UrbanGrid(Entity):
                 if (frm, to) in found_sections:
                     ff_dict[(frm, to)]['num'] += 1
                 else:
-                    # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
                     found_sections.add((frm, to))
                     frm_node = self.nodes[frm]
                     via_node = self.nodes[to]

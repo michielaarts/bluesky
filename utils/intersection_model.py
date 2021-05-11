@@ -164,12 +164,12 @@ class IntersectionModel(AnalyticalModel):
             else:
                 p_north = [0]
             p_turn = np.array([p_east, p_north])
-            lambda_d = np.array([self.from_flow_rates.loc['west', 'middle'] / self.speed,
-                                 self.from_flow_rates.loc['south', 'middle'] / self.speed])
+            q_total = np.array([self.from_flow_rates.loc['west', 'middle'],
+                                self.from_flow_rates.loc['south', 'middle']])
+            lambda_d = q_total / self.speed
             x = self.s_h * np.sqrt(2)
             p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
-            n_total_flow = np.array([[self.flow_ratio[0] + self.flow_ratio[2]],
-                                     [self.flow_ratio[1] + self.flow_ratio[3]]]) * self.n_total
+            n_total_flow = q_total * self.duration[1]
             c_total_turn = np.sum(p_turn * p_dist * n_total_flow, axis=0)
             self.n_total_flow = n_total_flow
             self.c_total_turn = c_total_turn
@@ -219,6 +219,15 @@ class IntersectionModel(AnalyticalModel):
                 delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
                 turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
                 general_delay += turn_delay[i, :]
+
+                # # Webster delay version.
+                # p_turn = self.flow_rates.iloc[i + 2] / (self.flow_rates.iloc[i] + self.flow_rates.iloc[i + 2])
+                # q_turn = q_g * p_turn
+                # lambda_u_turn = 1 - delay_per_turn * q_turn
+                # c_u_turn = 1 / q_turn
+                # y_turn = q_g * delay_per_turn
+                # turn_delay = c_u_turn * np.power(1 - lambda_u_turn, 2) / (2 * (1 - y_turn))
+                # general_delay += turn_delay
 
             # Stochastic delay.
             stochastic_y = q_g * general_delay

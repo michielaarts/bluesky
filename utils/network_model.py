@@ -20,7 +20,7 @@ VS = 194. * fpm
 
 class NetworkModel(AnalyticalModel):
     def __init__(self, urban_grid: UrbanGrid, max_value: float, accuracy: int, duration: Tuple[float, float, float],
-                 speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS):
+                 speed: float, s_h: float, s_v: float, t_l: float, vs: float = VS, turn_model: bool = False):
         """
         Class for the analytical conflict count and delay models.
 
@@ -33,6 +33,7 @@ class NetworkModel(AnalyticalModel):
         :param s_v: vertical separation distance [ft]
         :param t_l: look-ahead time [s]
         :param vs: vertical speed of aircraft [m/s] (optional)
+        :param turn_model: Whether or not to include the turn model [bool] (optional, default: False)
         """
         super().__init__()
 
@@ -46,6 +47,7 @@ class NetworkModel(AnalyticalModel):
         self.s_h = s_h
         self.s_v = s_v * ft  # m
         self.t_l = t_l
+        self.turn_model = turn_model
 
         self.cruise_alt = 50. * ft  # m
         self.departure_alt = 0. * ft  # m
@@ -56,6 +58,9 @@ class NetworkModel(AnalyticalModel):
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
                 self.urban_grid.n_rows != self.urban_grid.n_cols:
             raise NotImplementedError('Analytical model can only be determined for a square grid')
+
+        # Turn model variables.
+        self.c_total_nr_turn = None
 
         # Initiate arrays.
         self.n_inst = np.linspace(1, self.max_value, self.accuracy)
@@ -92,7 +97,7 @@ class NetworkModel(AnalyticalModel):
         """
         flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
         for ni in self.n_inst:
-            passage_rate = ni * self.speed / self.urban_grid.grid_height
+            passage_rate = ni * self.speed / (2 * self.urban_grid.grid_height)  # frm, via, to = 2 sections.
             flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
         return flow_rates
 
@@ -104,7 +109,7 @@ class NetworkModel(AnalyticalModel):
         """
         from_flow_rates = pd.DataFrame(index=self.urban_grid.from_flow_df.index, columns=self.n_inst)
         for ni in self.n_inst:
-            passage_rate = ni * self.speed / self.urban_grid.grid_height
+            passage_rate = ni * self.speed / self.urban_grid.grid_height  # frm, to = 1 section.
             from_flow_rates[ni] = self.urban_grid.from_flow_df['flow_distribution'] * passage_rate
         return from_flow_rates
 
@@ -184,12 +189,49 @@ class NetworkModel(AnalyticalModel):
                 # Sanity check.
                 raise NotImplementedError(f'Intersections with {len(isct_ni)} segments not implemented.')
 
+        # Add turning conflicts (optional).
+        self.c_total_nr_turn = self.extended_from_flow_rates.copy() * 0.
+        if self.turn_model:
+            via_idx = self.flow_rates.index.get_level_values('via')
+            fdf_via_idx = self.urban_grid.flow_df.index.get_level_values('via')
+            for isct in self.urban_grid.isct_nodes:
+                isct_flows = self.flow_rates[via_idx == isct]
+                isct_fdf = self.urban_grid.flow_df[fdf_via_idx == isct]
+                for frm_hdg in isct_fdf['from_hdg'].unique():
+                    frm_hdg_idx = isct_fdf['from_hdg'] == frm_hdg
+                    corner_idx = isct_fdf['corner']
+                    if (frm_hdg_idx & corner_idx).any():
+                        # Turning out-of-airway traffic present.
+                        # Determine turn probability.
+                        if frm_hdg_idx.sum() == 2:
+                            # Obtain flow rates.
+                            q_straight = isct_flows.loc[frm_hdg_idx & ~corner_idx].squeeze()
+                            q_turn = isct_flows.loc[frm_hdg_idx & corner_idx].squeeze()
+                            p_turn = q_turn / (q_straight + q_turn)
+                        elif frm_hdg_idx.sum() == 1:
+                            p_turn = 1.
+                        else:
+                            # Sanity check.
+                            raise ValueError('Error in turning traffic model.')
+
+                        # Determine distance probability.
+                        frm_node = isct_flows.loc[frm_hdg_idx & corner_idx].index.values[0][0]
+                        q_total = self.from_flow_rates.loc[(frm_node, isct)]
+                        lambda_d = q_total / self.speed
+                        x = self.s_h * np.sqrt(2)
+                        # p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
+                        p_dist = 1 - np.exp(-lambda_d * x)
+
+                        # Add to conflict total.
+                        nr_n_total_flow = q_total * self.duration[1]
+                        self.c_total_nr_turn.loc[(frm_node, isct)] = p_turn * p_dist * nr_n_total_flow
+
         # Sum self interaction and crossing conflicts / LoS.
         nr_li = nr_li_crossing + nr_li_self_interaction
         # Self interaction with equal speeds must be a LoS.
         nr_ci = nr_ci_crossing
         # Calculate total using mean conflict duration of lookahead time.
-        nr_ctotal = nr_ci * self.duration[1] / self.t_l
+        nr_ctotal = nr_ci * self.duration[1] / self.t_l + self.c_total_nr_turn.sum()
         # Each conflict should result in a LoS.
         nr_lostotal = nr_ctotal
 
@@ -242,6 +284,13 @@ class NetworkModel(AnalyticalModel):
                 c_u = 1 / q_r
                 y = q_g * t_x
                 general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
+
+                # Add turn delay (optional).
+                if self.turn_model:
+                    delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
+                    n_total_flow = q_g * self.duration[1]
+                    turn_delay = delay_per_turn * self.c_total_nr_turn.loc[(from_nodes[i], node)] / n_total_flow
+                    general_delay += turn_delay
 
                 # Stochastic delay.
                 stochastic_y = q_g * general_delay
@@ -346,6 +395,6 @@ if __name__ == '__main__':
     plot_flow_rates(grid.flow_df)
 
     ana_model = NetworkModel(grid, max_value=100, accuracy=50,
-                             duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+                             duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=True)
 
     ana_model.plot_mfd()
