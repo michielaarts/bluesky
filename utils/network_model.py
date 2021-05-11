@@ -55,7 +55,7 @@ class NetworkModel(AnalyticalModel):
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
                 self.urban_grid.n_rows != self.urban_grid.n_cols:
-            raise NotImplementedError('Analytical model can only be determined for an equal grid size')
+            raise NotImplementedError('Analytical model can only be determined for a square grid')
 
         # Initiate arrays.
         self.n_inst = np.linspace(1, self.max_value, self.accuracy)
@@ -83,6 +83,44 @@ class NetworkModel(AnalyticalModel):
         # WR conflict count model.
         self.c_total_wr = self.wr_conflict_model()
         self.dep = (self.c_total_wr / self.c_total_nr) - 1.
+
+    def determine_flow_rates(self) -> pd.DataFrame:
+        """
+        Calculates (from, via, to) flow rates based on flow proportion.
+
+        :return: Flow rates dataframe
+        """
+        flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
+        for ni in self.n_inst:
+            passage_rate = ni * self.speed / self.urban_grid.grid_height
+            flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
+        return flow_rates
+
+    def determine_from_flow_rates(self) -> pd.DataFrame:
+        """
+        Determines the flow rates in each section of the grid.
+
+        :return: From flow rates dataframe
+        """
+        from_flow_rates = pd.DataFrame(index=self.urban_grid.from_flow_df.index, columns=self.n_inst)
+        for ni in self.n_inst:
+            passage_rate = ni * self.speed / self.urban_grid.grid_height
+            from_flow_rates[ni] = self.urban_grid.from_flow_df['flow_distribution'] * passage_rate
+        return from_flow_rates
+
+    def determine_extended_from_flow_rates(self) -> pd.DataFrame:
+        """
+        Appends the departure rates to the from flow df.
+
+        :return: extended from flows dataframe
+        """
+        departure_index = pd.MultiIndex.from_frame(pd.DataFrame({'from': ['departure'] * len(self.urban_grid.od_nodes),
+                                                                 'via': self.urban_grid.od_nodes}))
+        departure_df = pd.DataFrame(index=departure_index, columns=self.n_inst)
+        for i in range(len(departure_index)):
+            departure_df.iloc[i] = self.departure_rate_per_node
+        ff_df = self.from_flow_rates.append(departure_df)
+        return ff_df
 
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -157,44 +195,6 @@ class NetworkModel(AnalyticalModel):
 
         return nr_ci, nr_li, nr_ctotal, nr_lostotal
 
-    def determine_flow_rates(self) -> pd.DataFrame:
-        """
-        Calculates (from, via, to) flow rates based on flow proportion.
-
-        :return: Flow rates dataframe
-        """
-        flow_rates = pd.DataFrame(index=self.urban_grid.flow_df.index, columns=self.n_inst)
-        for ni in self.n_inst:
-            passage_rate = ni * self.speed / self.urban_grid.grid_height
-            flow_rates[ni] = self.urban_grid.flow_df['flow_distribution'] * passage_rate
-        return flow_rates
-
-    def determine_from_flow_rates(self) -> pd.DataFrame:
-        """
-        Determines the flow rates in each section of the grid.
-
-        :return: From flow rates dataframe
-        """
-        from_flow_rates = pd.DataFrame(index=self.urban_grid.from_flow_df.index, columns=self.n_inst)
-        for ni in self.n_inst:
-            passage_rate = ni * self.speed / self.urban_grid.grid_height
-            from_flow_rates[ni] = self.urban_grid.from_flow_df['flow_distribution'] * passage_rate
-        return from_flow_rates
-
-    def determine_extended_from_flow_rates(self) -> pd.DataFrame:
-        """
-        Appends the departure rates to the from flow df.
-
-        :return: extended from flows dataframe
-        """
-        departure_index = pd.MultiIndex.from_frame(pd.DataFrame({'from': ['departure'] * len(self.urban_grid.od_nodes),
-                                                                 'via': self.urban_grid.od_nodes}))
-        departure_df = pd.DataFrame(index=departure_index, columns=self.n_inst)
-        for i in range(len(departure_index)):
-            departure_df.iloc[i] = self.departure_rate_per_node
-        ff_df = self.from_flow_rates.append(departure_df)
-        return ff_df
-
     def delay_model(self) -> pd.DataFrame:
         """
         Calculates the delay per vehicle at each node for the extended from_flow dataframe.
@@ -203,7 +203,6 @@ class NetworkModel(AnalyticalModel):
         1) departure separation (within flow).
         2) intersection separation (between flows).
 
-        :param flow_df: a from_flow dataframe (from e.g. determine_from_flow_rates())
         :return: Delay dataframe
         """
         delays = pd.DataFrame().reindex_like(self.extended_from_flow_rates)

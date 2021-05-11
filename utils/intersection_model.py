@@ -79,6 +79,38 @@ class IntersectionModel(AnalyticalModel):
         self.c_total_wr = self.wr_conflict_model()
         self.dep = (self.c_total_wr / self.c_total_nr) - 1.
 
+    def determine_flow_rates(self) -> pd.DataFrame:
+        """
+        Determines flow rates through the UrbanGrid for each n_inst.
+
+        :return: Flow rates dataframe
+        """
+        flow_rates = pd.DataFrame(index=self.flow_ratio, columns=self.n_inst)
+        for ni in self.n_inst:
+            passage_rate = ni * self.speed / self.mean_route_length
+            flow_rates[ni] = pd.Series(self.flow_ratio, index=self.flow_ratio, dtype=float) * passage_rate
+        return flow_rates
+
+    def determine_from_flow_rates(self, flow_df) -> Tuple[pd.DataFrame, pd.Series]:
+        """
+        Groups flow rates based on from and via nodes, to obtain the 'from flow'-rates and headings.
+
+        :param flow_df: Flow rates dataframe.
+        :return: From flow rates dataframe
+        """
+        sections = pd.MultiIndex.from_frame(
+            pd.DataFrame({'from': ['west', 'south', 'middle', 'middle'],
+                          'to': ['middle', 'middle', 'east', 'north']}))
+
+        from_flows = pd.DataFrame(index=sections, columns=self.n_inst, dtype=float)
+        from_flows.loc['west', 'middle'] = flow_df.iloc[0] + flow_df.iloc[2]
+        from_flows.loc['south', 'middle'] = flow_df.iloc[1] + flow_df.iloc[3]
+        from_flows.loc['middle', 'east'] = flow_df.iloc[0] + flow_df.iloc[3]
+        from_flows.loc['middle', 'north'] = flow_df.iloc[1] + flow_df.iloc[2]
+
+        hdg = pd.Series([90, 0, 90, 0], index=sections, name='hdg', dtype=float)
+        return from_flows, hdg
+
     def nr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         The conflict count model without conflict resolution.
@@ -121,8 +153,19 @@ class IntersectionModel(AnalyticalModel):
 
         if self.turn_model:
             # Turning traffic.
-            p_turn = np.array([[self.flow_ratio[2] / self.flow_ratio[0]],
-                               [self.flow_ratio[3] / self.flow_ratio[1]]])
+            if self.flow_ratio[0] != 0:
+                p_east = [self.flow_ratio[2] / self.flow_ratio[0]]
+            elif self.flow_ratio[2] != 0:
+                p_east = [1]
+            else:
+                p_east = [0]
+            if self.flow_ratio[1] != 0:
+                p_north = [self.flow_ratio[3] / self.flow_ratio[1]]
+            elif self.flow_ratio[3] != 0:
+                p_north = [1]
+            else:
+                p_north = [0]
+            p_turn = np.array([p_east, p_north])
             lambda_d = np.array([self.from_flow_rates.loc['west', 'middle'] / self.speed,
                                  self.from_flow_rates.loc['south', 'middle'] / self.speed])
             x = self.s_h * np.sqrt(2)
@@ -145,38 +188,6 @@ class IntersectionModel(AnalyticalModel):
 
         return nr_ci, nr_li, nr_ctotal, nr_lostotal
 
-    def determine_flow_rates(self) -> pd.DataFrame:
-        """
-        Determines flow rates through the UrbanGrid for each n_inst.
-
-        :return: Flow rates dataframe
-        """
-        flow_rates = pd.DataFrame(index=self.flow_ratio, columns=self.n_inst)
-        for ni in self.n_inst:
-            passage_rate = ni * self.speed / self.mean_route_length
-            flow_rates[ni] = pd.Series(self.flow_ratio, index=self.flow_ratio, dtype=float) * passage_rate
-        return flow_rates
-
-    def determine_from_flow_rates(self, flow_df) -> Tuple[pd.DataFrame, pd.Series]:
-        """
-        Groups flow rates based on from and via nodes, to obtain the 'from flow'-rates and headings.
-
-        :param flow_df: Flow rates dataframe.
-        :return: From flow rates dataframe
-        """
-        sections = pd.MultiIndex.from_frame(
-            pd.DataFrame({'from': ['west', 'south', 'middle', 'middle'],
-                          'to': ['middle', 'middle', 'east', 'north']}))
-
-        from_flows = pd.DataFrame(index=sections, columns=self.n_inst, dtype=float)
-        from_flows.loc['west', 'middle'] = flow_df.iloc[0] + flow_df.iloc[2]
-        from_flows.loc['south', 'middle'] = flow_df.iloc[1] + flow_df.iloc[3]
-        from_flows.loc['middle', 'east'] = flow_df.iloc[0] + flow_df.iloc[3]
-        from_flows.loc['middle', 'north'] = flow_df.iloc[1] + flow_df.iloc[2]
-
-        hdg = pd.Series([90, 0, 90, 0], index=sections, name='hdg', dtype=float)
-        return from_flows, hdg
-
     def delay_model(self) -> pd.DataFrame:
         """
         Calculates the delay per vehicle at each node for the provided from_flow dataframe.
@@ -186,7 +197,6 @@ class IntersectionModel(AnalyticalModel):
         2) intersection separation (between flows).
         Departure separation is performed in the scenario generator.
 
-        :param flow_df: a from_flow dataframe (from e.g. determine_from_flow_rates())
         :return: Delay dataframe
         """
         delays = pd.DataFrame().reindex_like(self.from_flow_rates)
@@ -291,6 +301,6 @@ if __name__ == '__main__':
     FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)
 
     ana_model = IntersectionModel(FLOW_RATIO, max_value=50, accuracy=50,
-                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L)
+                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=True)
 
     ana_model.plot_mfd()
