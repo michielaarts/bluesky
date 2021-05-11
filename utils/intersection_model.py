@@ -153,16 +153,14 @@ class IntersectionModel(AnalyticalModel):
 
         if self.turn_model:
             # Turning traffic.
-            if self.flow_ratio[0] != 0:
-                p_east = [self.flow_ratio[2] / self.flow_ratio[0]]
-            elif self.flow_ratio[2] != 0:
-                p_east = [1]
+            if self.flow_ratio[0] + self.flow_ratio[2] != 0:
+                # Prevent div / 0 errors.
+                p_east = [self.flow_ratio[2] / (self.flow_ratio[0] + self.flow_ratio[2])]
             else:
                 p_east = [0]
-            if self.flow_ratio[1] != 0:
-                p_north = [self.flow_ratio[3] / self.flow_ratio[1]]
-            elif self.flow_ratio[3] != 0:
-                p_north = [1]
+            if self.flow_ratio[1] + self.flow_ratio[3] != 0:
+                # Prevent div / 0 errors.
+                p_north = [self.flow_ratio[3] / (self.flow_ratio[1] + self.flow_ratio[3])]
             else:
                 p_north = [0]
             p_turn = np.array([p_east, p_north])
