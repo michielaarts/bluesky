@@ -115,7 +115,7 @@ class NetworkModel(AnalyticalModel):
         :return: extended from flows dataframe
         """
         departure_index = pd.MultiIndex.from_frame(pd.DataFrame({'from': ['departure'] * len(self.urban_grid.od_nodes),
-                                                                 'via': self.urban_grid.od_nodes}))
+                                                                 'to': self.urban_grid.od_nodes}))
         departure_df = pd.DataFrame(index=departure_index, columns=self.n_inst)
         for i in range(len(departure_index)):
             departure_df.iloc[i] = self.departure_rate_per_node
@@ -131,7 +131,7 @@ class NetworkModel(AnalyticalModel):
         :return: (Inst. no. of conflicts, Inst. no. of LoS)
         """
         print('Calculating analytical NR model...')
-        nr_ni_per_section = self.urban_grid.grid_height / self.speed * self.from_flow_rates.copy()
+        nr_ni_per_section = self.from_flow_rates.copy() * (self.urban_grid.grid_height / self.speed)
 
         # Self interaction (LoS only).
         nr_li_si_per_section = 0. * nr_ni_per_section.copy()
@@ -155,14 +155,14 @@ class NetworkModel(AnalyticalModel):
 
         # Obtain index arrays.
         from_idx = nr_ni_per_section.index.get_level_values('from')
-        via_idx = nr_ni_per_section.index.get_level_values('via')
+        to_idx = nr_ni_per_section.index.get_level_values('to')
 
         # Loop over all intersections.
         nr_li_crossing = 0. * nr_li_self_interaction.copy()
         nr_ci_crossing = 0. * nr_li_self_interaction.copy()
         for isct in self.urban_grid.isct_nodes:
-            isct_ni = nr_ni_per_section[(from_idx == isct) | (via_idx == isct)]
-            upstream_ni = nr_ni_per_section[via_idx == isct]
+            isct_ni = nr_ni_per_section[(from_idx == isct) | (to_idx == isct)]
+            upstream_ni = nr_ni_per_section[to_idx == isct]
             if len(isct_ni) == 2:
                 # Corner node, skip.
                 continue
@@ -208,13 +208,13 @@ class NetworkModel(AnalyticalModel):
         delays = pd.DataFrame().reindex_like(self.extended_from_flow_rates)
         delays[:] = 0.
 
-        # Obtain via index array.
-        via_idx = self.extended_from_flow_rates.index.get_level_values('via')
+        # Obtain to index array.
+        to_idx = self.extended_from_flow_rates.index.get_level_values('to')
 
         # Delay model.
         for node in self.urban_grid.all_nodes:
-            node_flows = self.extended_from_flow_rates.iloc[via_idx == node]
-            from_nodes = node_flows.index.get_level_values('from').unique()
+            node_flows = self.extended_from_flow_rates.iloc[to_idx == node]
+            from_nodes = node_flows.index.get_level_values('from')
             if node in self.urban_grid.od_nodes:
                 # Departure separation: time to merge into an airway [s].
                 t_x = self.s_h / self.speed
@@ -309,13 +309,13 @@ class NetworkModel(AnalyticalModel):
     def wr_conflict_model(self) -> np.ndarray:
         """ Based on local flow rates and delay """
         vehicle_delay_per_second = self.delays * self.extended_from_flow_rates
-        vd_via_idx = vehicle_delay_per_second.index.get_level_values('via')
-        ff_via_idx = self.extended_from_flow_rates.index.get_level_values('via')
+        vd_to_idx = vehicle_delay_per_second.index.get_level_values('to')
+        ff_to_idx = self.extended_from_flow_rates.index.get_level_values('to')
         additional_conflicts_per_second = pd.Series(0, index=self.n_inst)
         for node in self.urban_grid.all_nodes:
             # Loop over all nodes.
-            node_delays_per_second = vehicle_delay_per_second[vd_via_idx == node].copy()
-            node_from_flows = self.extended_from_flow_rates[ff_via_idx == node].copy()
+            node_delays_per_second = vehicle_delay_per_second[vd_to_idx == node].copy()
+            node_from_flows = self.extended_from_flow_rates[ff_to_idx == node].copy()
             node_from_flows_reversed = node_from_flows.copy().iloc[-1::-1]
             if len(node_delays_per_second) == 1:
                 # Border node with no delay, skip.

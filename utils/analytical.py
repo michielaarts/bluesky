@@ -149,6 +149,8 @@ class AnalyticalModel:
         are within the stable range.
         """
         plt.figure()
-        plt.plot(self.n_inst, self.flow_rate_wr)
-        plt.xlabel('No. of inst. aircraft NR')
+        plt.plot(self.n_inst, self.n_inst * self.speed, color='blue', label='NR')
+        plt.plot(self.n_inst_wr, self.flow_rate_wr, color='red', label='WR')
+        plt.xlabel('No. of inst. aircraft')
         plt.ylabel('Flow rate [veh m / s]')
+        plt.legend(loc='upper left')

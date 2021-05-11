@@ -301,6 +301,6 @@ if __name__ == '__main__':
     FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)
 
     ana_model = IntersectionModel(FLOW_RATIO, max_value=50, accuracy=50,
-                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=True)
+                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=False)
 
     ana_model.plot_mfd()

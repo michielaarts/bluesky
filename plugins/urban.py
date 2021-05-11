@@ -459,26 +459,25 @@ class UrbanGrid(Entity):
         found_sections = set()
         for path in self._paths:
             for i in range(len(path) - 1):
-                # Does not include origin and destination passages of nodes in via.
-                frm, via = path[i:i + 2]
-                if (frm, via) in found_sections:
-                    ff_dict[(frm, via)]['num'] += 1
+                frm, to = path[i:i + 2]
+                if (frm, to) in found_sections:
+                    ff_dict[(frm, to)]['num'] += 1
                 else:
                     # Check if corner, i.e. bearing of from and to is approx 45 / 135 / 225 / 315 deg.
-                    found_sections.add((frm, via))
+                    found_sections.add((frm, to))
                     frm_node = self.nodes[frm]
-                    via_node = self.nodes[via]
+                    via_node = self.nodes[to]
                     qdr, _ = kwikqdrdist(frm_node['lat'], frm_node['lon'],
                                          via_node['lat'], via_node['lon'])
                     hdg = all_angles[np.isclose(qdr, all_angles, atol=5)][0]
                     if hdg == 360:
                         hdg = 0.
 
-                    ff_dict[(frm, via)] = {'num': 1, 'hdg': hdg}
+                    ff_dict[(frm, to)] = {'num': 1, 'hdg': hdg}
 
         # Convert to dataframe.
         ff_df = pd.DataFrame.from_dict(ff_dict, orient='index')
-        ff_df.index = ff_df.index.rename(['from', 'via'])
+        ff_df.index = ff_df.index.rename(['from', 'to'])
 
         # Normalize to obtain distribution.
         ff_df['flow_distribution'] = ff_df['num'] / ff_df['num'].sum()
