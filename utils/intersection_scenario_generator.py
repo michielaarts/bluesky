@@ -20,7 +20,7 @@ APPROACH_DISTANCE = 1000.  # m
 SATURATION = np.linspace(0.05, 0.95, 10)  # [0.15, 0.35, 0.55, 0.75, 0.95]
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
-EXPONENTIAL = False
+EXPONENTIAL = True
 
 
 class ScenarioGenerator:
@@ -86,7 +86,7 @@ class ScenarioGenerator:
         # Loop through saturations.
         all_scen = []
         for sat in SATURATION:
-            # For turn ratio simulations.
+            # # For turn ratio simulations.
             # flow_ratio = (self.flow_ratio[0] * (1 - sat), self.flow_ratio[1] * (1 - sat),
             #               self.flow_ratio[0] * sat, self.flow_ratio[1] * sat)
             # sat = 0.7
@@ -97,13 +97,13 @@ class ScenarioGenerator:
                 n_total = 0
                 all_ac = []
                 print(f'Calculating scenario for saturation={sat}, Rep={rep}...')
-                for i in range(len(flow_ratio)):
-                    if flow_ratio[i] == 0:
+                for i in range(2):
+                    # Determine departure times.
+                    flow_rate = (flow_ratio[i] + flow_ratio[i + 2]) * sat * max_intersection_flow_rate
+                    if flow_rate == 0:
                         # No aircraft in this flow.
                         continue
 
-                    # Determine departure times.
-                    flow_rate = flow_ratio[i] * sat * max_intersection_flow_rate
                     spawn_interval = 1 / flow_rate
                     n_total_flow = round(sum(duration) * flow_rate)
                     n_total += n_total_flow
@@ -118,11 +118,24 @@ class ScenarioGenerator:
                                                                               size=n_total_flow)
 
                     # Create aircraft.
+                    p_turn = flow_ratio[i + 2] / (flow_ratio[i] + flow_ratio[i + 2])
+                    straight_bool = np.random.uniform(0, 1, size=n_total_flow) >= p_turn
                     for ac_id in range(len(departure_times)):
+                        if straight_bool[ac_id]:
+                            # Aircraft heading straight.
+                            origin = self.routes[i][0]
+                            destination = self.routes[i][-1]
+                            path = self.routes[i]
+                            hdg = self.hdg[i]
+                        else:
+                            origin = self.routes[i + 2][0]
+                            destination = self.routes[i + 2][-1]
+                            path = self.routes[i + 2]
+                            hdg = self.hdg[i + 2]
                         ac_dict = {'id': ac_id + start_id, 'departure_time': departure_times[ac_id],
-                                   'origin': self.routes[i][0], 'destination': self.routes[i][-1],
-                                   'path': self.routes[i], 'path_length': 2 * APPROACH_DISTANCE,
-                                   'hdg': self.hdg[i], 'ac_type': ac_type}
+                                   'origin': origin, 'destination': destination,
+                                   'path': path, 'path_length': 2 * APPROACH_DISTANCE,
+                                   'hdg': hdg, 'ac_type': ac_type}
                         all_ac.append(ac_dict)
                     start_id += ac_id + 1
 
@@ -145,6 +158,10 @@ class ScenarioGenerator:
                                 # Increase separation if too close to prior aircraft.
                                 sorted_ac[j]['departure_time'] = prior_dep_time + departure_sep
                             prior_dep_time = sorted_ac[j]['departure_time']
+
+                # Sort again, as departure times have changed.
+                departure_sort = np.argsort([ac['departure_time'] for ac in sorted_ac])
+                sorted_ac = sorted_ac[departure_sort]
 
                 scen_dict = {'flow_ratio': flow_ratio, 'sat': sat, 'rep': rep,
                              'n_total': n_total, 'speed': speed, 'duration': duration,
@@ -327,7 +344,7 @@ if __name__ == '__main__':
     EXPERIMENT_DURATION = 45 * 60.  # s
     COOL_DOWN_DURATION = 15 * 60.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'final'
+    PREFIX = 'expon_final'
 
     SPEED = 10.  # m/s
 
