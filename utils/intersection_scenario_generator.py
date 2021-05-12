@@ -106,16 +106,23 @@ class ScenarioGenerator:
 
                     spawn_interval = 1 / flow_rate
                     n_total_flow = round(sum(duration) * flow_rate)
-                    n_total += n_total_flow
                     if EXPONENTIAL:
                         # Exponential distribution.
-                        departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total_flow))
+                        departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total_flow * 2))
+                        # Upper bound on departure times.
+                        departure_times = departure_times[departure_times <= sum(duration)]
+                        n_total_flow = len(departure_times)
                     else:
                         # Uniform distribution.
                         departure_times = np.array(range(n_total_flow)) * spawn_interval
                         # Add noise.
                         departure_times = departure_times + np.random.uniform(0, spawn_interval * 0.99,
                                                                               size=n_total_flow)
+                    n_total += n_total_flow
+
+                    # Sanity check on departure times.
+                    if departure_times[-1] >= sum(duration):
+                        raise ValueError('Something went wrong in determining departure times')
 
                     # Create aircraft.
                     p_turn = flow_ratio[i + 2] / (flow_ratio[i] + flow_ratio[i + 2])
@@ -139,7 +146,7 @@ class ScenarioGenerator:
                         all_ac.append(ac_dict)
                     start_id += ac_id + 1
 
-                # Sanity check on all id's.
+                # Sanity check on all AC ID's.
                 all_id = np.array([ac['id'] for ac in all_ac])
                 _, id_counts = np.unique(all_id, return_counts=True)
                 if np.any(id_counts > 1):
@@ -337,7 +344,7 @@ class ScenarioGenerator:
 
 if __name__ == '__main__':
     # FLOW_RATIO = (EASTBOUND, NORTHBOUND, EAST-NORTH TURN, NORTH-EAST TURN).
-    FLOW_RATIO = (0.8, 0.2, 0.0, 0.0)  # Sum should be 1.
+    FLOW_RATIO = (0.54, 0.36, 0.06, 0.04)  # Sum should be 1.
     REPETITIONS = 10
 
     BUILD_UP_DURATION = 15 * 60.  # s
