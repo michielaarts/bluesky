@@ -18,7 +18,7 @@ DEPARTURE_ALTITUDE = 0.  # ft
 CRUISE_ALTITUDE = 0.  # ft
 
 # Use exponential distribution for departure separation. If False: uniform + noise.
-EXPONENTIAL = False
+EXPONENTIAL = True
 
 
 class ScenarioGenerator:
@@ -106,7 +106,10 @@ class ScenarioGenerator:
                 if EXPONENTIAL:
                     # Exponential distribution.
                     # Exponential is more realistic, but std. dev. of inst. no. of aircraft is higher.
-                    departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total))
+                    departure_times = np.cumsum(stats.expon(scale=spawn_interval).rvs(n_total * 2))
+                    # Upper bound on departure times.
+                    departure_times = departure_times[departure_times <= sum(duration)]
+                    n_total = len(departure_times)
                 else:
                     # Uniform distribution.
                     departure_times = np.array(range(n_total)) * spawn_interval
@@ -328,7 +331,7 @@ if __name__ == '__main__':
     EXPERIMENT_DURATION = 2700.  # s
     COOL_DOWN_DURATION = 900.  # s
     DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-    PREFIX = 'final_grid'
+    PREFIX = 'expon_grid'
 
     N_ROWS = 7
     N_COLS = N_ROWS

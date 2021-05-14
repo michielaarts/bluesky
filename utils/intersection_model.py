@@ -214,11 +214,11 @@ class IntersectionModel(AnalyticalModel):
             y = q_g * t_x
             general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
-            if self.turn_model:
+            # if self.turn_model:
                 # General turn delay.
-                delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
-                turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
-                general_delay += turn_delay[i, :]
+                # delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
+                # turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
+                # general_delay += turn_delay[i, :]
 
                 # # Webster delay version.
                 # p_turn = self.flow_rates.iloc[i + 2] / (self.flow_rates.iloc[i] + self.flow_rates.iloc[i + 2])
@@ -230,8 +230,8 @@ class IntersectionModel(AnalyticalModel):
                 # general_delay += turn_delay
 
             # Stochastic delay.
-            stochastic_y = q_g * general_delay
-            stochastic_delay = stochastic_y * stochastic_y / (2 * q_g * (1 - stochastic_y))
+            # stochastic_y = q_g * general_delay
+            stochastic_delay = y * y / (2 * q_g * (1 - y))
 
             # If intersection unstable, set delay very large.
             if isinstance(general_delay, pd.Series):
@@ -296,6 +296,7 @@ class IntersectionModel(AnalyticalModel):
             raise NotImplementedError(f'Intersections with {len(isct_delays_per_second)} headings not implemented.')
 
         c_total_wr = self.c_total_nr + additional_conflicts_per_second * self.duration[1]
+        c_total_wr[np.isnan(self.n_inst_wr)] = np.nan
         return c_total_wr
 
 

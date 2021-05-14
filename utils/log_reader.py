@@ -266,14 +266,14 @@ def load_analytical_model(result: dict, scn_folder: Path = SCN_FOLDER) -> Tuple[
         urban_grid = None
         flow_ratio = result[all_runs[0]]['scn']['flow_ratio']
         ana_model = IntersectionModel(flow_ratio=flow_ratio, max_value=30, accuracy=50,
-                                      duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+                                      duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l, turn_model=True)
     else:
         max_val = max([result[run]['scn']['n_inst'] for run in all_runs])
         grid_pkl = scn_folder / 'Data' / f'{prefix}_urban_grid.pkl'
         with open(grid_pkl, 'rb') as f:
             urban_grid = pkl.load(f)
         ana_model = NetworkModel(urban_grid, max_value=max_val * 1.1, accuracy=50,
-                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l)
+                                 duration=duration, speed=speed, s_h=s_h, s_v=s_v, t_l=t_l, turn_model=True)
     return urban_grid, ana_model
 
 
@@ -590,10 +590,10 @@ def estimate_accuracy(data: dict, ana_model: AnalyticalModel) -> pd.Series:
 
 
 if __name__ == '__main__':
-    use_pkl = False
+    use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_final_54360604_NR.pkl')
+        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_expon_grid_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:
