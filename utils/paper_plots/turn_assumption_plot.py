@@ -59,8 +59,6 @@ def load_models(data_dict: dict, ana_model: IntersectionModel) -> dict:
             if flow_ratio not in all_ana_models.keys():
                 new_model = copy.deepcopy(ana_model)
                 new_model.flow_ratio = flow_ratio
-                n_inst_nr = data_dict[f'N{run[1:]}']['conf']['ni_ac']
-                new_model.n_inst = np.array([n_inst_nr])
                 new_model.calculate_models()
                 all_ana_models[flow_ratio] = new_model
     return all_ana_models
@@ -117,7 +115,7 @@ if __name__ == '__main__':
         ax.set_xlabel('Percentage turning traffic [%]')
         ax.set_ylabel('Mean delay per aircraft [s]')
         ax.set_xlim([-5, 100])
-        ax.set_ylim([-5/20, 5])
+        ax.set_ylim([-11/20, 11])
         if i == 1:
             fig.savefig(PAPER_FOLDER / 'turn_assumption_model.png', bbox_inches='tight')
             fig.savefig(PAPER_FOLDER / 'turn_assumption_model.eps', bbox_inches='tight')
@@ -160,7 +158,7 @@ if __name__ == '__main__':
         ax3.set_xlabel('Percentage turning traffic [%]')
         ax3.set_ylabel('Total number of conflicts WR [-]')
         ax3.set_xlim([-5, 100])
-        ax3.set_ylim([-250 / 20, 250])
+        ax3.set_ylim([-400 / 20, 400])
         if i == 1:
             fig3.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_wr.png', bbox_inches='tight')
             fig3.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_wr.eps', bbox_inches='tight')

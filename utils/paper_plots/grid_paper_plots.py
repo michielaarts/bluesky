@@ -3,11 +3,14 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from tkinter import Tk, filedialog
 from typing import List, Tuple
-from utils.intersection_model import IntersectionModel
+from utils.network_model import NetworkModel
+from plugins.urban import UrbanGrid
+import pickle as pkl
 import re
 
 RES_FOLDER = Path('../../output/RESULT/')
-COLORS = ('green', 'royalblue', 'orchid')
+GRID_FOLDER = Path('../../scenario/URBAN/Data/')
+COLORS = ['firebrick']
 MARKER = 'x'
 ALPHA = 0.5
 LINESTYLE = 'None'
@@ -20,53 +23,50 @@ BUILD_UP_DURATION = 15 * 60.  # s
 EXPERIMENT_DURATION = 45 * 60.  # s
 COOL_DOWN_DURATION = 15 * 60.  # s
 DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-MAX_VALUE = 30.
+MAX_VALUE = 70.
 ACCURACY = 100
-
-MEAN_FLIGHT_TIME = 2000. / SPEED
 
 plt.rcParams.update({'font.size': 16})
 
 
-def load_files() -> Tuple[List[pd.DataFrame], List[Tuple[float, float, float, float]]]:
+def load_files() -> Tuple[List[pd.DataFrame], List[UrbanGrid]]:
     tk_root = Tk()
     res_files = filedialog.askopenfilenames(initialdir=RES_FOLDER, title='Select results to plot',
                                             filetypes=[('csv', '*.csv')])
     tk_root.destroy()
 
     dfs = []
-    ratios = []
+    grids = []
     for f in res_files:
         dfs.append(pd.read_csv(f'{f[:-4]}.csv', header=[0, 1]))
-        flow_ratio_string = re.findall(r'.*_(\d*)_NR.csv', f)[0]
-        flow_ratio = (float(flow_ratio_string[:2])/100., float(flow_ratio_string[2:4])/100.,
-                      float(flow_ratio_string[4:6])/100., float(flow_ratio_string[6:])/100.,)
-        ratios.append(flow_ratio)
-    return dfs, ratios
+        prefix = re.findall('.*batch_(.*)_NR.csv', f)[0]
+        with open(f'{GRID_FOLDER / prefix}_urban_grid.pkl', 'rb') as pkl_file:
+            grids.append(pkl.load(pkl_file))
+    return dfs, grids
 
 
-def load_analytical_models(ratios: List[Tuple[float, float, float, float]]) -> List[IntersectionModel]:
+def load_analytical_models(grids: List[UrbanGrid]) -> List[NetworkModel]:
     all_models = []
-    for fr in ratios:
-        model = IntersectionModel(flow_ratio=fr, max_value=MAX_VALUE, accuracy=ACCURACY,
-                                  duration=DURATION, speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=True)
-        all_models.append(model)
+    for grid in grids:
+        all_models.append(NetworkModel(urban_grid=grid, max_value=MAX_VALUE, accuracy=ACCURACY, duration=DURATION,
+                                       speed=SPEED, s_h=S_H, s_v=S_V, t_l=T_L, turn_model=True))
     return all_models
 
 
 if __name__ == '__main__':
-    data, flow_ratios = load_files()
-    models = load_analytical_models(flow_ratios)
+    data, urban_grids = load_files()
+    models = load_analytical_models(urban_grids)
 
-    legend_elements = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
-    legend_entries = ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios]
+    legend_elements = [plt.Line2D([0], [0], linestyle='-', marker='None', color=COLORS[0]),
+                       plt.Line2D([0], [0], linestyle='None', marker=MARKER, color=COLORS[0])]
+    legend_entries = ['Model', 'Experiment']
     legend_loc = 'upper left'
 
     # NR conflict count.
     nr_conf_inst_fig, nr_conf_inst_ax = plt.subplots()
     for i in range(len(data)):
         nr_conf_inst_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ni_conf'], label=None,
-                        linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+                             linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         nr_conf_inst_ax.plot(models[i].n_inst, models[i].c_inst_nr, label=None, color=COLORS[i])
     nr_conf_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_conf_inst_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
@@ -169,7 +169,7 @@ if __name__ == '__main__':
                     label=None, color=COLORS[i])
     mfd_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     mfd_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
-    mfd_ax.set_ylabel('Network flow rate [veh m / s]')
+    mfd_ax.set_ylabel(r'Network flow rate [veh$\cdot$m / s]')
     mfd_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
     # mfd_ax.set_ylim([-550/20, 550])
 
@@ -188,21 +188,21 @@ if __name__ == '__main__':
 
     # Save figures.
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
-    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'c_inst_nr.eps', bbox_inches='tight')
-    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'c_inst_nr.png', bbox_inches='tight')
-    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.eps', bbox_inches='tight')
-    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.png', bbox_inches='tight')
-    nr_los_inst_fig.savefig(PAPER_FOLDER / 'los_inst_nr.eps', bbox_inches='tight')
-    nr_los_inst_fig.savefig(PAPER_FOLDER / 'los_inst_nr.png', bbox_inches='tight')
-    nr_los_fig.savefig(PAPER_FOLDER / 'los_total_nr.eps', bbox_inches='tight')
-    nr_los_fig.savefig(PAPER_FOLDER / 'los_total_nr.png', bbox_inches='tight')
-    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.eps', bbox_inches='tight')
-    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.png', bbox_inches='tight')
-    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.eps', bbox_inches='tight')
-    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.png', bbox_inches='tight')
-    wr_ni_fig.savefig(PAPER_FOLDER / 'n_inst_wr.eps', bbox_inches='tight')
-    wr_ni_fig.savefig(PAPER_FOLDER / 'n_inst_wr.png', bbox_inches='tight')
-    mfd_fig.savefig(PAPER_FOLDER / 'mfd.eps', bbox_inches='tight')
-    mfd_fig.savefig(PAPER_FOLDER / 'mfd.png', bbox_inches='tight')
-    dep_fig.savefig(PAPER_FOLDER / 'dep.eps', bbox_inches='tight')
-    dep_fig.savefig(PAPER_FOLDER / 'dep.png', bbox_inches='tight')
+    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'grid_c_inst_nr.eps', bbox_inches='tight')
+    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'grid_c_inst_nr.png', bbox_inches='tight')
+    nr_conf_fig.savefig(PAPER_FOLDER / 'grid_c_total_nr.eps', bbox_inches='tight')
+    nr_conf_fig.savefig(PAPER_FOLDER / 'grid_c_total_nr.png', bbox_inches='tight')
+    nr_los_inst_fig.savefig(PAPER_FOLDER / 'grid_los_inst_nr.eps', bbox_inches='tight')
+    nr_los_inst_fig.savefig(PAPER_FOLDER / 'grid_los_inst_nr.png', bbox_inches='tight')
+    nr_los_fig.savefig(PAPER_FOLDER / 'grid_los_total_nr.eps', bbox_inches='tight')
+    nr_los_fig.savefig(PAPER_FOLDER / 'grid_los_total_nr.png', bbox_inches='tight')
+    wr_delay_fig.savefig(PAPER_FOLDER / 'grid_delay_wr.eps', bbox_inches='tight')
+    wr_delay_fig.savefig(PAPER_FOLDER / 'grid_delay_wr.png', bbox_inches='tight')
+    wr_conf_fig.savefig(PAPER_FOLDER / 'grid_c_total_wr.eps', bbox_inches='tight')
+    wr_conf_fig.savefig(PAPER_FOLDER / 'grid_c_total_wr.png', bbox_inches='tight')
+    wr_ni_fig.savefig(PAPER_FOLDER / 'grid_n_inst_wr.eps', bbox_inches='tight')
+    wr_ni_fig.savefig(PAPER_FOLDER / 'grid_n_inst_wr.png', bbox_inches='tight')
+    mfd_fig.savefig(PAPER_FOLDER / 'grid_mfd.eps', bbox_inches='tight')
+    mfd_fig.savefig(PAPER_FOLDER / 'grid_mfd.png', bbox_inches='tight')
+    dep_fig.savefig(PAPER_FOLDER / 'grid_dep.eps', bbox_inches='tight')
+    dep_fig.savefig(PAPER_FOLDER / 'grid_dep.png', bbox_inches='tight')
