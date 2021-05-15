@@ -214,24 +214,9 @@ class IntersectionModel(AnalyticalModel):
             y = q_g * t_x
             general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
-            # if self.turn_model:
-                # General turn delay.
-                # delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
-                # turn_delay = delay_per_turn * self.c_total_turn / self.n_total_flow
-                # general_delay += turn_delay[i, :]
-
-                # # Webster delay version.
-                # p_turn = self.flow_rates.iloc[i + 2] / (self.flow_rates.iloc[i] + self.flow_rates.iloc[i + 2])
-                # q_turn = q_g * p_turn
-                # lambda_u_turn = 1 - delay_per_turn * q_turn
-                # c_u_turn = 1 / q_turn
-                # y_turn = q_g * delay_per_turn
-                # turn_delay = c_u_turn * np.power(1 - lambda_u_turn, 2) / (2 * (1 - y_turn))
-                # general_delay += turn_delay
-
             # Stochastic delay.
-            # stochastic_y = q_g * general_delay
-            stochastic_delay = y * y / (2 * q_g * (1 - y))
+            x = q_g * t_x / np.sqrt(2) / lambda_u
+            stochastic_delay = x * x / (2 * q_g * (1 - x))
 
             # If intersection unstable, set delay very large.
             if isinstance(general_delay, pd.Series):

@@ -285,16 +285,9 @@ class NetworkModel(AnalyticalModel):
                 y = q_g * t_x
                 general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
 
-                # Add turn delay (optional).
-                # if self.turn_model:
-                    # delay_per_turn = self.s_h * (np.sqrt(2) - 1) / self.speed
-                    # n_total_flow = q_g * self.duration[1]
-                    # turn_delay = delay_per_turn * self.c_total_nr_turn.loc[(from_nodes[i], node)] / n_total_flow
-                    # general_delay += turn_delay
-
                 # Stochastic delay.
-                # stochastic_y = q_g * general_delay
-                stochastic_delay = y * y / (2 * q_g * (1 - y))
+                x = q_g * t_x / np.sqrt(2) / lambda_u
+                stochastic_delay = x * x / (2 * q_g * (1 - x))
 
                 # If intersection unstable, set delay very large.
                 general_delay[total_y >= 1] = 1E5
@@ -378,7 +371,7 @@ class NetworkModel(AnalyticalModel):
                 raise NotImplementedError(f'Intersections with {len(node_delays_per_second)} headings not implemented.')
 
         c_total_wr = self.c_total_nr + additional_conflicts_per_second * self.duration[1]
-        c_total_wr[np.isnan(self.n_inst_wr)] = np.nan
+        c_total_wr[self.n_inst_wr.isna()] = np.nan
         return c_total_wr
 
 
