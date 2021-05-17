@@ -8,6 +8,7 @@ from typing import Tuple
 import numpy as np
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
+import copy
 
 
 class AnalyticalModel:
@@ -154,3 +155,6 @@ class AnalyticalModel:
         plt.xlabel('No. of inst. aircraft')
         plt.ylabel('Flow rate [veh m / s]')
         plt.legend(loc='upper left')
+
+    def copy(self):
+        return copy.deepcopy(self)

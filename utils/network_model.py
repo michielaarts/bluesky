@@ -61,6 +61,7 @@ class NetworkModel(AnalyticalModel):
 
         # Turn model variables.
         self.c_total_nr_turn = None
+        self.c_total_wr_turn = None
 
         # Initiate arrays.
         self.n_inst = np.linspace(1, self.max_value, self.accuracy)
@@ -69,6 +70,10 @@ class NetworkModel(AnalyticalModel):
         self.calculate_models()
 
     def calculate_models(self):
+        # Reset turn variables.
+        self.c_total_nr_turn = None
+        self.c_total_wr_turn = None
+
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
         self.flow_rates = self.determine_flow_rates()  # veh / s
@@ -191,6 +196,7 @@ class NetworkModel(AnalyticalModel):
 
         # Add turning conflicts (optional).
         self.c_total_nr_turn = self.extended_from_flow_rates.copy() * 0.
+        self.c_total_wr_turn = self.extended_from_flow_rates.copy() * 0.
         if self.turn_model:
             via_idx = self.flow_rates.index.get_level_values('via')
             fdf_via_idx = self.urban_grid.flow_df.index.get_level_values('via')
@@ -219,12 +225,13 @@ class NetworkModel(AnalyticalModel):
                         q_total = self.from_flow_rates.loc[(frm_node, isct)]
                         lambda_d = q_total / self.speed
                         x = self.s_h * np.sqrt(2)
-                        # p_dist = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
-                        p_dist = 1 - np.exp(-lambda_d * x)
+                        p_dist = (1 - np.exp(-lambda_d * x)) - (1 - np.exp(-lambda_d * self.s_h))
+                        p_dist_wr = 1 - (1 - self.s_h * lambda_d) * np.exp(-lambda_d * (x - self.s_h))
 
                         # Add to conflict total.
                         nr_n_total_flow = q_total * self.duration[1]
                         self.c_total_nr_turn.loc[(frm_node, isct)] = p_turn * p_dist * nr_n_total_flow
+                        self.c_total_wr_turn.loc[(frm_node, isct)] = p_turn * p_dist_wr * nr_n_total_flow
 
         # Sum self interaction and crossing conflicts / LoS.
         nr_li = nr_li_crossing + nr_li_self_interaction
@@ -370,7 +377,8 @@ class NetworkModel(AnalyticalModel):
                 # Sanity check.
                 raise NotImplementedError(f'Intersections with {len(node_delays_per_second)} headings not implemented.')
 
-        c_total_wr = self.c_total_nr + additional_conflicts_per_second * self.duration[1]
+        c_total_crossing_nr = self.c_total_nr - self.c_total_nr_turn.sum()
+        c_total_wr = c_total_crossing_nr + self.c_total_wr_turn.sum() + additional_conflicts_per_second * self.duration[1]
         c_total_wr[self.n_inst_wr.isna()] = np.nan
         return c_total_wr
 

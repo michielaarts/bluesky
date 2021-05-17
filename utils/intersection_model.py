@@ -61,6 +61,10 @@ class IntersectionModel(AnalyticalModel):
         self.calculate_models()
 
     def calculate_models(self):
+        # Reset turn variables.
+        self.n_total_flow = 0
+        self.c_total_turn = 0
+
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
         self.flow_rates = self.determine_flow_rates()  # veh / s
@@ -243,6 +247,7 @@ class IntersectionModel(AnalyticalModel):
         print('Calculating analytical WR model...')
         isct_flow_rates = self.from_flow_rates.loc[self.from_flow_rates.index.get_level_values('to') == 'middle'].sum()
         wr_delay = (self.delays * self.from_flow_rates.loc[self.delays.index]).sum() / isct_flow_rates
+        wr_delay[wr_delay >= 1E5] = np.nan
 
         max_ni_per_section = self.section_length / self.s_h
 
