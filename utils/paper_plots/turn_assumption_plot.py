@@ -1,14 +1,14 @@
-import copy
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import pickle as pkl
 from tkinter import Tk, filedialog
-from typing import Tuple
+from typing import Tuple, List
 from utils.intersection_model import IntersectionModel
+import pandas as pd
+import scipy.optimize as opt
 
 RES_FOLDER = Path(r'../../output/RESULT/')
-PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
 COLORS = ('blue', 'firebrick')
 LABELS = ('Turn', 'No turn')
@@ -57,7 +57,7 @@ def load_models(data_dict: dict, ana_model: IntersectionModel) -> dict:
         if run.startswith('WR'):
             flow_ratio = result['scn']['flow_ratio']
             if flow_ratio not in all_ana_models.keys():
-                new_model = copy.deepcopy(ana_model)
+                new_model = ana_model.copy()
                 new_model.flow_ratio = flow_ratio
                 new_model.calculate_models()
                 all_ana_models[flow_ratio] = new_model
@@ -70,6 +70,8 @@ def process_delays(data_dict: dict):
     delay = []
     nr_conf = []
     wr_conf = []
+    nr_ac = []
+    wr_ac = []
     # Extract delays and pct turn.
     for (run, result) in data_dict.items():
         if run.startswith('WR'):
@@ -83,13 +85,82 @@ def process_delays(data_dict: dict):
             delay.append(wr_flight_time - nr_flight_time)
             nr_conf.append(data_dict[f'N{run[1:]}']['conf']['ntotal_conf'])
             wr_conf.append(result['conf']['ntotal_conf'])
+            nr_ac.append(data_dict[f'N{run[1:]}']['conf']['ni_ac'])
+            wr_ac.append(result['conf']['ni_ac'])
 
-    return turn_pct, flow_ratio, delay, nr_conf, wr_conf
+    parsed_df = pd.DataFrame({
+        'turn_pct': turn_pct,
+        'flow_ratio': flow_ratio,
+        'delay_wr': delay,
+        'c_total_nr': nr_conf,
+        'c_total_wr': wr_conf,
+        'n_inst_nr': nr_ac,
+        'n_inst_wr': wr_ac
+    })
+    return parsed_df
+
+
+def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
+    x = parsed_data['turn_pct']
+    # Plot delay.
+    fig, ax = plt.subplots()
+    ax.plot(x, parsed_data['delay_wr'],
+            marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
+    ax.plot(x, [all_models[fr].delay_wr.iloc[0] for fr in parsed_data['flow_ratio']],
+            color=COLORS[0], label=None)
+    ax.plot([0, 100], [base_model.delay_wr.iloc[0]] * 2,
+            color=COLORS[1], label=None)
+    ax.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
+    ax.set_xlabel('Percentage turning traffic [%]')
+    ax.set_ylabel('Mean delay per aircraft [s]')
+    ax.set_xlim([-5, 100])
+    ax.set_ylim([-11 / 20, 11])
+    if save:
+        fig.savefig(folder / 'turn_assumption_model_delay.png', bbox_inches='tight')
+        fig.savefig(folder / 'turn_assumption_model_delay.eps', bbox_inches='tight')
+
+    # Plot conflicts.
+    # NR.
+    fig2, ax2 = plt.subplots()
+    ax2.plot(x, parsed_data['c_total_nr'],
+             marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
+    ax2.plot(x, [all_models[fr].c_total_nr.iloc[0] for fr in parsed_data['flow_ratio']],
+             color=COLORS[0], label=None)
+    ax2.plot([0, 100], [base_model.c_total_nr.iloc[0]] * 2,
+             color=COLORS[1], label=None)
+    ax2.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
+    ax2.set_xlabel('Percentage turning traffic [%]')
+    ax2.set_ylabel('Total number of conflicts NR [-]')
+    ax2.set_xlim([-5, 100])
+    ax2.set_ylim([-250 / 20, 250])
+    if save:
+        fig2.savefig(folder / 'turn_assumption_model_conf_nr.png', bbox_inches='tight')
+        fig2.savefig(folder / 'turn_assumption_model_conf_nr.eps', bbox_inches='tight')
+
+    # WR
+    fig3, ax3 = plt.subplots()
+    ax3.plot(x, parsed_data['c_total_wr'],
+             marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
+    ax3.plot(x, [all_models[fr].c_total_wr.iloc[0] for fr in parsed_data['flow_ratio']],
+             color=COLORS[0], label=None)
+    ax3.plot([0, 100], [base_model.c_total_wr.iloc[0]] * 2,
+             color=COLORS[1], label=None)
+    ax3.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
+    ax3.set_xlabel('Percentage turning traffic [%]')
+    ax3.set_ylabel('Total number of conflicts WR [-]')
+    ax3.set_xlim([-5, 100])
+    ax3.set_ylim([-400 / 20, 400])
+    if save:
+        fig3.savefig(folder / 'turn_assumption_model_conf_wr.png', bbox_inches='tight')
+        fig3.savefig(folder / 'turn_assumption_model_conf_wr.eps', bbox_inches='tight')
+    return [fig, fig2, fig3]
 
 
 if __name__ == '__main__':
     BASE_RATIO = (0.6, 0.4, 0., 0.)
     SAT = 0.7
+    SAVE = True
+    PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
     data = load_file()
 
@@ -99,69 +170,6 @@ if __name__ == '__main__':
     base_model.calculate_models()
     all_models = load_models(data, base_model)
 
-    turn_percentages, flow_ratios, flow_delays, c_total_nr, c_total_wr = process_delays(data)
+    parsed_data = process_delays(data)
 
-    # Plot delay excl & incl model.
-    for i in range(2):
-        fig, ax = plt.subplots()
-        ax.plot(turn_percentages, flow_delays,
-                marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
-        if i == 1:
-            ax.plot(turn_percentages, [all_models[fr].delay_wr.iloc[0] for fr in flow_ratios],
-                    color=COLORS[0], label=None)
-        ax.plot([0, 100], [base_model.delay_wr.iloc[0]] * 2,
-                color=COLORS[1], label=None)
-        ax.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
-        ax.set_xlabel('Percentage turning traffic [%]')
-        ax.set_ylabel('Mean delay per aircraft [s]')
-        ax.set_xlim([-5, 100])
-        ax.set_ylim([-11/20, 11])
-        if i == 1:
-            fig.savefig(PAPER_FOLDER / 'turn_assumption_model.png', bbox_inches='tight')
-            fig.savefig(PAPER_FOLDER / 'turn_assumption_model.eps', bbox_inches='tight')
-        else:
-            fig.savefig(PAPER_FOLDER / 'turn_assumption.png', bbox_inches='tight')
-            fig.savefig(PAPER_FOLDER / 'turn_assumption.eps', bbox_inches='tight')
-
-        # Plot conflicts.
-        # NR.
-        fig2, ax2 = plt.subplots()
-        ax2.plot(turn_percentages, c_total_nr,
-                 marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
-        if i == 1:
-            ax2.plot(turn_percentages, [all_models[fr].c_total_nr.iloc[0] for fr in flow_ratios],
-                     color=COLORS[0], label=None)
-        ax2.plot([0, 100], [base_model.c_total_nr.iloc[0]] * 2,
-                 color=COLORS[1], label=None)
-        ax2.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
-        ax2.set_xlabel('Percentage turning traffic [%]')
-        ax2.set_ylabel('Total number of conflicts NR [-]')
-        ax2.set_xlim([-5, 100])
-        ax2.set_ylim([-250/20, 250])
-        if i == 1:
-            fig2.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_nr.png', bbox_inches='tight')
-            fig2.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_nr.eps', bbox_inches='tight')
-        else:
-            fig2.savefig(PAPER_FOLDER / 'turn_assumption_conf_nr.png', bbox_inches='tight')
-            fig2.savefig(PAPER_FOLDER / 'turn_assumption_conf_nr.eps', bbox_inches='tight')
-
-        # WR
-        fig3, ax3 = plt.subplots()
-        ax3.plot(turn_percentages, c_total_wr,
-                 marker=MARKER, linestyle=LINESTYLE, alpha=ALPHA, color=COLORS[0], label=None)
-        if i == 1:
-            ax3.plot(turn_percentages, [all_models[fr].c_total_wr.iloc[0] for fr in flow_ratios],
-                     color=COLORS[0], label=None)
-        ax3.plot([0, 100], [base_model.c_total_wr.iloc[0]] * 2,
-                 color=COLORS[1], label=None)
-        ax3.legend(LEGEND_ELEMENTS, LABELS, loc='upper left')
-        ax3.set_xlabel('Percentage turning traffic [%]')
-        ax3.set_ylabel('Total number of conflicts WR [-]')
-        ax3.set_xlim([-5, 100])
-        ax3.set_ylim([-400 / 20, 400])
-        if i == 1:
-            fig3.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_wr.png', bbox_inches='tight')
-            fig3.savefig(PAPER_FOLDER / 'turn_assumption_model_conf_wr.eps', bbox_inches='tight')
-        else:
-            fig3.savefig(PAPER_FOLDER / 'turn_assumption_conf_wr.png', bbox_inches='tight')
-            fig3.savefig(PAPER_FOLDER / 'turn_assumption_conf_wr.eps', bbox_inches='tight')
+    figs = create_plots(save=SAVE, folder=PAPER_FOLDER)

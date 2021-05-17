@@ -218,7 +218,7 @@ def determine_k(save: bool, folder: Path) -> pd.DataFrame:
 
     for i in range(len(data)):
         k_model = models[i].copy()
-        k_model.n_inst = data[i]['NR']['ni_ac']
+        k_model.n_inst = data[i]['NR']['ni_ac'].to_numpy()
         k_model.calculate_models()
 
         k_dict = dict()
@@ -243,11 +243,20 @@ def determine_k(save: bool, folder: Path) -> pd.DataFrame:
     return all_k_df
 
 
+def determine_k_pct(df: pd.DataFrame, save: bool, folder: Path) -> pd.DataFrame:
+    pct = df.copy().apply(lambda k: (1 - abs((k - 1)/k)) * 100)
+    if save:
+        pct.to_csv(folder / 'accuracy_pct.csv')
+        print('Saved accuracy_pct.csv')
+    return pct
+
+
 if __name__ == '__main__':
-    SAVE = False
+    SAVE = True
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
     data, flow_ratios = load_files()
     models = load_analytical_models(flow_ratios)
     create_plots(save=SAVE, folder=PAPER_FOLDER)
-    k_df = determine_k(save=True, folder=PAPER_FOLDER)
+    k_df = determine_k(save=SAVE, folder=PAPER_FOLDER)
+    pct_df = determine_k_pct(k_df, save=SAVE, folder=PAPER_FOLDER)

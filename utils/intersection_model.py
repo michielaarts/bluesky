@@ -61,9 +61,7 @@ class IntersectionModel(AnalyticalModel):
         self.calculate_models()
 
     def calculate_models(self):
-        # Reset turn variables.
-        self.n_total_flow = 0
-        self.c_total_turn = 0
+        assert isinstance(self.n_inst, np.ndarray), 'calculate_models() only works with n_inst as numpy array'
 
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr

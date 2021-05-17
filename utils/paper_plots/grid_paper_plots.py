@@ -57,7 +57,8 @@ def load_analytical_models(grids: List[UrbanGrid]) -> List[NetworkModel]:
     return all_models
 
 
-def create_plots(save: bool, folder: Path):
+def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
+    all_figures = []
     legend_elements = [plt.Line2D([0], [0], linestyle='-', marker='None', color=COLORS[0]),
                        plt.Line2D([0], [0], linestyle='None', marker=MARKER, color=COLORS[0])]
     legend_entries = ['Model', 'Experiment']
@@ -74,6 +75,7 @@ def create_plots(save: bool, folder: Path):
     nr_conf_inst_ax.set_ylabel('Number of instantaneous conflicts NR [-]')
     nr_conf_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_conf_inst_ax.set_ylim([-250/20, 250])
+    all_figures.append(nr_conf_inst_fig)
 
     nr_conf_fig, nr_conf_ax = plt.subplots()
     for i in range(len(data)):
@@ -85,6 +87,7 @@ def create_plots(save: bool, folder: Path):
     nr_conf_ax.set_ylabel('Total number of conflicts NR [-]')
     nr_conf_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_conf_ax.set_ylim([-250/20, 250])
+    all_figures.append(nr_conf_fig)
 
     # NR LoS count.
     nr_los_inst_fig, nr_los_inst_ax = plt.subplots()
@@ -97,6 +100,7 @@ def create_plots(save: bool, folder: Path):
     nr_los_inst_ax.set_ylabel('Number of instantaneous LoS NR [-]')
     nr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_inst_ax.set_ylim([-1.75/20, 1.75])
+    all_figures.append(nr_los_inst_fig)
 
     nr_los_fig, nr_los_ax = plt.subplots()
     for i in range(len(data)):
@@ -108,6 +112,7 @@ def create_plots(save: bool, folder: Path):
     nr_los_ax.set_ylabel('Total number of LoS NR [-]')
     nr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_ax.set_ylim([-1.75/20, 1.75])
+    all_figures.append(nr_los_fig)
 
     # Delay.
     wr_delay_fig, wr_delay_ax = plt.subplots()
@@ -121,6 +126,7 @@ def create_plots(save: bool, folder: Path):
     wr_delay_ax.set_ylabel('Mean intersection delay per vehicle [s]')
     wr_delay_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_delay_ax.set_ylim([-6/20, 6])
+    all_figures.append(wr_delay_fig)
 
     # Mean V.
     wr_v_fig, wr_v_ax = plt.subplots()
@@ -134,6 +140,7 @@ def create_plots(save: bool, folder: Path):
     wr_v_ax.set_ylabel('Mean speed [m/s]')
     wr_v_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_v_ax.set_ylim([9.5, 10.05])
+    all_figures.append(wr_v_fig)
 
     # WR conflict count.
     wr_conf_fig, wr_conf_ax = plt.subplots()
@@ -147,6 +154,7 @@ def create_plots(save: bool, folder: Path):
     wr_conf_ax.set_ylabel('Total number of conflicts WR [-]')
     wr_conf_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_conf_ax.set_ylim([-550/20, 550])
+    all_figures.append(wr_conf_fig)
 
     # WR Ni.
     wr_ni_fig, wr_ni_ax = plt.subplots()
@@ -160,6 +168,7 @@ def create_plots(save: bool, folder: Path):
     wr_ni_ax.set_ylabel('Number of instantaneous aircraft WR [-]')
     wr_ni_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_ni_ax.set_ylim([-550/20, 550])
+    all_figures.append(wr_ni_fig)
 
     # MFD.
     mfd_fig, mfd_ax = plt.subplots()
@@ -173,6 +182,7 @@ def create_plots(save: bool, folder: Path):
     mfd_ax.set_ylabel(r'Network flow rate [veh$\cdot$m / s]')
     mfd_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # mfd_ax.set_ylim([-550/20, 550])
+    all_figures.append(mfd_fig)
 
     # DEP.
     dep_fig, dep_ax = plt.subplots()
@@ -186,6 +196,7 @@ def create_plots(save: bool, folder: Path):
     dep_ax.set_ylabel('Domino Effect Parameter [-]')
     dep_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # dep_ax.set_ylim([-550/20, 550])
+    all_figures.append(dep_fig)
 
     # Save figures.
     if save:
@@ -207,6 +218,7 @@ def create_plots(save: bool, folder: Path):
         mfd_fig.savefig(folder / 'grid_mfd.png', bbox_inches='tight')
         dep_fig.savefig(folder / 'grid_dep.eps', bbox_inches='tight')
         dep_fig.savefig(folder / 'grid_dep.png', bbox_inches='tight')
+    return all_figures
 
 
 def fit_k(exp, model) -> float:
@@ -219,7 +231,7 @@ def determine_k(save: bool, folder: Path) -> pd.DataFrame:
 
     for i in range(len(data)):
         k_model = models[i].copy()
-        k_model.n_inst = data[i]['NR']['ni_ac']
+        k_model.n_inst = data[i]['NR']['ni_ac'].to_numpy()
         k_model.calculate_models()
 
         k_dict = dict()
@@ -244,11 +256,20 @@ def determine_k(save: bool, folder: Path) -> pd.DataFrame:
     return all_k_df
 
 
+def determine_k_pct(df: pd.DataFrame, save: bool, folder: Path) -> pd.DataFrame:
+    pct = df.copy().apply(lambda k: (1 - abs((k - 1)/k)) * 100)
+    if save:
+        pct.to_csv(folder / 'grid_accuracy_pct.csv')
+        print('Saved grid_accuracy_pct.csv')
+    return pct
+
+
 if __name__ == '__main__':
-    SAVE = False
+    SAVE = True
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
     data, urban_grids, prefixes = load_files()
     models = load_analytical_models(urban_grids)
-    create_plots(save=SAVE, folder=PAPER_FOLDER)
+    figs = create_plots(save=SAVE, folder=PAPER_FOLDER)
     k_df = determine_k(save=SAVE, folder=PAPER_FOLDER)
+    pct_df = determine_k_pct(k_df, save=SAVE, folder=PAPER_FOLDER)
