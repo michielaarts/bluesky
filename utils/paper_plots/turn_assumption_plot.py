@@ -156,6 +156,43 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
     return [fig, fig2, fig3]
 
 
+def fit_k(exp, model) -> float:
+    return opt.fmin(lambda k: np.nansum(np.power(exp - model.values * k, 2)),
+                    x0=1, disp=False)[0]
+
+
+def determine_k(save: bool, folder: Path) -> pd.Series:
+    relevant_vars = ['c_total_nr', 'delay_wr', 'c_total_wr']
+
+    model_df = parsed_data.copy()
+    model_df[relevant_vars] = 0.
+    for i in range(len(parsed_data)):
+        k_model = all_models[parsed_data['flow_ratio'].iloc[i]].copy()
+        k_model.n_inst = np.array([parsed_data['n_inst_nr'].iloc[i]])
+        k_model.calculate_models()
+
+        model_df.iloc[i, model_df.columns.get_loc('c_total_nr')] = k_model.c_total_nr.values
+        model_df.iloc[i, model_df.columns.get_loc('delay_wr')] = k_model.delay_wr.values
+        model_df.iloc[i, model_df.columns.get_loc('c_total_wr')] = k_model.c_total_wr.values
+
+    k_dict = dict()
+    for var in relevant_vars:
+        k_dict[var] = fit_k(parsed_data[var], model_df[var])
+    all_k = pd.Series(k_dict)
+    if save:
+        all_k.to_csv(folder / 'turn_accuracy.csv')
+        print('Saved turn_accuracy.csv.')
+    return all_k
+
+
+def determine_k_pct(df: pd.Series, save: bool, folder: Path) -> pd.Series:
+    pct = df.copy().apply(lambda k: (1 - abs((k - 1)/k)) * 100)
+    if save:
+        pct.to_csv(folder / 'turn_accuracy_pct.csv')
+        print('Saved turn_accuracy_pct.csv')
+    return pct
+
+
 if __name__ == '__main__':
     BASE_RATIO = (0.6, 0.4, 0., 0.)
     SAT = 0.7
@@ -173,3 +210,5 @@ if __name__ == '__main__':
     parsed_data = process_delays(data)
 
     figs = create_plots(save=SAVE, folder=PAPER_FOLDER)
+    k_series = determine_k(save=SAVE, folder=PAPER_FOLDER)
+    pct_series = determine_k_pct(k_series, save=SAVE, folder=PAPER_FOLDER)

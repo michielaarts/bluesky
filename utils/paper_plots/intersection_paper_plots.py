@@ -57,9 +57,12 @@ def load_analytical_models(ratios: List[Tuple[float, float, float, float]]) -> L
 
 
 def create_plots(save: bool, folder: Path):
+    legend_order = [1, 2, 0]
     legend_elements = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
     legend_entries = ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios]
     legend_loc = 'upper left'
+    legend_elements = list(legend_elements[i] for i in legend_order)
+    legend_entries = list(legend_entries[i] for i in legend_order)
 
     # NR conflict count.
     nr_conf_inst_fig, nr_conf_inst_ax = plt.subplots()
