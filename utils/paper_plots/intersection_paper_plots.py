@@ -5,6 +5,8 @@ from tkinter import Tk, filedialog
 from typing import List, Tuple
 from utils.intersection_model import IntersectionModel
 import re
+import scipy.optimize as opt
+import numpy as np
 
 RES_FOLDER = Path('../../output/RESULT/')
 COLORS = ('green', 'royalblue', 'orchid')
@@ -54,10 +56,7 @@ def load_analytical_models(ratios: List[Tuple[float, float, float, float]]) -> L
     return all_models
 
 
-if __name__ == '__main__':
-    data, flow_ratios = load_files()
-    models = load_analytical_models(flow_ratios)
-
+def create_plots(save: bool, folder: Path):
     legend_elements = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
     legend_entries = ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios]
     legend_loc = 'upper left'
@@ -66,12 +65,12 @@ if __name__ == '__main__':
     nr_conf_inst_fig, nr_conf_inst_ax = plt.subplots()
     for i in range(len(data)):
         nr_conf_inst_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ni_conf'], label=None,
-                        linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+                             linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         nr_conf_inst_ax.plot(models[i].n_inst, models[i].c_inst_nr, label=None, color=COLORS[i])
     nr_conf_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_conf_inst_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_conf_inst_ax.set_ylabel('Number of instantaneous conflicts NR [-]')
-    nr_conf_inst_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    nr_conf_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_conf_inst_ax.set_ylim([-250/20, 250])
 
     nr_conf_fig, nr_conf_ax = plt.subplots()
@@ -82,7 +81,7 @@ if __name__ == '__main__':
     nr_conf_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_conf_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_conf_ax.set_ylabel('Total number of conflicts NR [-]')
-    nr_conf_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    nr_conf_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_conf_ax.set_ylim([-250/20, 250])
 
     # NR LoS count.
@@ -94,7 +93,7 @@ if __name__ == '__main__':
     nr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_los_inst_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_los_inst_ax.set_ylabel('Number of instantaneous LoS NR [-]')
-    nr_los_inst_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    nr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_inst_ax.set_ylim([-1.75/20, 1.75])
 
     nr_los_fig, nr_los_ax = plt.subplots()
@@ -105,7 +104,7 @@ if __name__ == '__main__':
     nr_los_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_los_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_los_ax.set_ylabel('Total number of LoS NR [-]')
-    nr_los_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    nr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_ax.set_ylim([-1.75/20, 1.75])
 
     # Delay.
@@ -118,7 +117,7 @@ if __name__ == '__main__':
     wr_delay_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_delay_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     wr_delay_ax.set_ylabel('Mean intersection delay per vehicle [s]')
-    wr_delay_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    wr_delay_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_delay_ax.set_ylim([-6/20, 6])
 
     # Mean V.
@@ -144,7 +143,7 @@ if __name__ == '__main__':
     wr_conf_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_conf_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     wr_conf_ax.set_ylabel('Total number of conflicts WR [-]')
-    wr_conf_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    wr_conf_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_conf_ax.set_ylim([-550/20, 550])
 
     # WR Ni.
@@ -157,7 +156,7 @@ if __name__ == '__main__':
     wr_ni_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_ni_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     wr_ni_ax.set_ylabel('Number of instantaneous aircraft WR [-]')
-    wr_ni_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    wr_ni_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_ni_ax.set_ylim([-550/20, 550])
 
     # MFD.
@@ -170,7 +169,7 @@ if __name__ == '__main__':
     mfd_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     mfd_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     mfd_ax.set_ylabel('Network flow rate [veh m / s]')
-    mfd_ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
+    mfd_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # mfd_ax.set_ylim([-550/20, 550])
 
     # DEP.
@@ -186,23 +185,69 @@ if __name__ == '__main__':
     dep_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # dep_ax.set_ylim([-550/20, 550])
 
-    # Save figures.
+    if save:
+        # Save figures.
+        nr_conf_inst_fig.savefig(folder / 'c_inst_nr.eps', bbox_inches='tight')
+        nr_conf_inst_fig.savefig(folder / 'c_inst_nr.png', bbox_inches='tight')
+        nr_conf_fig.savefig(folder / 'c_total_nr.eps', bbox_inches='tight')
+        nr_conf_fig.savefig(folder / 'c_total_nr.png', bbox_inches='tight')
+        nr_los_inst_fig.savefig(folder / 'los_inst_nr.eps', bbox_inches='tight')
+        nr_los_inst_fig.savefig(folder / 'los_inst_nr.png', bbox_inches='tight')
+        nr_los_fig.savefig(folder / 'los_total_nr.eps', bbox_inches='tight')
+        nr_los_fig.savefig(folder / 'los_total_nr.png', bbox_inches='tight')
+        wr_delay_fig.savefig(folder / 'delay_wr.eps', bbox_inches='tight')
+        wr_delay_fig.savefig(folder / 'delay_wr.png', bbox_inches='tight')
+        wr_conf_fig.savefig(folder / 'c_total_wr.eps', bbox_inches='tight')
+        wr_conf_fig.savefig(folder / 'c_total_wr.png', bbox_inches='tight')
+        wr_ni_fig.savefig(folder / 'n_inst_wr.eps', bbox_inches='tight')
+        wr_ni_fig.savefig(folder / 'n_inst_wr.png', bbox_inches='tight')
+        mfd_fig.savefig(folder / 'mfd.eps', bbox_inches='tight')
+        mfd_fig.savefig(folder / 'mfd.png', bbox_inches='tight')
+        dep_fig.savefig(folder / 'dep.eps', bbox_inches='tight')
+        dep_fig.savefig(folder / 'dep.png', bbox_inches='tight')
+
+
+def fit_k(exp, model) -> float:
+    return opt.fmin(lambda k: np.nansum(np.power(exp - model.values * k, 2)),
+                    x0=1, disp=False)[0]
+
+
+def determine_k(save: bool, folder: Path) -> pd.DataFrame:
+    legend_entries = ['/'.join(str(fr) for fr in flow_ratio) for flow_ratio in flow_ratios]
+    all_k_dict = dict()
+
+    for i in range(len(data)):
+        k_model = models[i].copy()
+        k_model.n_inst = data[i]['NR']['ni_ac']
+        k_model.calculate_models()
+
+        k_dict = dict()
+        k_dict['c_inst_nr'] = fit_k(data[i]['NR', 'ni_conf'], k_model.c_inst_nr)
+        k_dict['c_total_nr'] = fit_k(data[i]['NR', 'ntotal_conf'], k_model.c_total_nr)
+        k_dict['los_inst_nr'] = fit_k(data[i]['NR', 'ni_los'], k_model.los_inst_nr)
+        k_dict['los_total_nr'] = fit_k(data[i]['NR', 'ntotal_los'], k_model.los_total_nr)
+        k_dict['delay_wr'] = fit_k(data[i]['WR', 'flight_time'] - data[i]['NR', 'flight_time'],
+                                   k_model.delay_wr)
+        k_dict['mean_v'] = np.nan
+        k_dict['c_total_wr'] = fit_k(data[i]['WR', 'ntotal_conf'], k_model.c_total_wr)
+        k_dict['n_inst_wr'] = fit_k(data[i]['WR', 'ni_ac'], k_model.n_inst_wr)
+        k_dict['mfd'] = fit_k(data[i]['WR', 'ni_ac'] * data[i]['WR', 'mean_v'], k_model.flow_rate_wr)
+        k_dict['dep'] = fit_k(data[i]['WR', 'ntotal_conf'] / data[i]['NR', 'ntotal_conf'] - 1, k_model.dep)
+
+        all_k_dict[legend_entries[i]] = k_dict
+
+    all_k_df = pd.DataFrame.from_dict(all_k_dict)
+    if save:
+        all_k_df.to_csv(folder / 'accuracy.csv')
+        print('Saved accuracy.csv.')
+    return all_k_df
+
+
+if __name__ == '__main__':
+    SAVE = False
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
-    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'c_inst_nr.eps', bbox_inches='tight')
-    nr_conf_inst_fig.savefig(PAPER_FOLDER / 'c_inst_nr.png', bbox_inches='tight')
-    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.eps', bbox_inches='tight')
-    nr_conf_fig.savefig(PAPER_FOLDER / 'c_total_nr.png', bbox_inches='tight')
-    nr_los_inst_fig.savefig(PAPER_FOLDER / 'los_inst_nr.eps', bbox_inches='tight')
-    nr_los_inst_fig.savefig(PAPER_FOLDER / 'los_inst_nr.png', bbox_inches='tight')
-    nr_los_fig.savefig(PAPER_FOLDER / 'los_total_nr.eps', bbox_inches='tight')
-    nr_los_fig.savefig(PAPER_FOLDER / 'los_total_nr.png', bbox_inches='tight')
-    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.eps', bbox_inches='tight')
-    wr_delay_fig.savefig(PAPER_FOLDER / 'delay_wr.png', bbox_inches='tight')
-    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.eps', bbox_inches='tight')
-    wr_conf_fig.savefig(PAPER_FOLDER / 'c_total_wr.png', bbox_inches='tight')
-    wr_ni_fig.savefig(PAPER_FOLDER / 'n_inst_wr.eps', bbox_inches='tight')
-    wr_ni_fig.savefig(PAPER_FOLDER / 'n_inst_wr.png', bbox_inches='tight')
-    mfd_fig.savefig(PAPER_FOLDER / 'mfd.eps', bbox_inches='tight')
-    mfd_fig.savefig(PAPER_FOLDER / 'mfd.png', bbox_inches='tight')
-    dep_fig.savefig(PAPER_FOLDER / 'dep.eps', bbox_inches='tight')
-    dep_fig.savefig(PAPER_FOLDER / 'dep.png', bbox_inches='tight')
+
+    data, flow_ratios = load_files()
+    models = load_analytical_models(flow_ratios)
+    create_plots(save=SAVE, folder=PAPER_FOLDER)
+    k_df = determine_k(save=True, folder=PAPER_FOLDER)
