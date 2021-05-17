@@ -54,6 +54,10 @@ def load_analytical_model(ratio: Tuple[float, float, float, float]) -> Intersect
 
 
 def process_delays(res: dict):
+    total_east_flight_time_nr = dict()
+    total_north_flight_time_nr = dict()
+    total_east_ac = dict()
+    total_north_ac = dict()
     wr_runs = []
     wr_ni = []
     flow_delay = ([], [])
@@ -63,24 +67,29 @@ def process_delays(res: dict):
         if run.startswith('NR'):
             eastbound = (result['flstlog']['hdg'] > 45) & (result['flstlog']['hdg'] < 135)
             ac_index = result['flstlog']['callsign'].isin(result['ac'])
-            east_flight_time = result['flstlog']['flight_time'][eastbound & ac_index].mean()
-            north_flight_time = result['flstlog']['flight_time'][~eastbound & ac_index].mean()
-            break
+            total_east_flight_time_nr[run] = result['flstlog']['flight_time'][eastbound & ac_index].sum()
+            total_north_flight_time_nr[run] = result['flstlog']['flight_time'][~eastbound & ac_index].sum()
+            total_east_ac[run] = sum(eastbound & ac_index)
+            total_north_ac[run] = sum(~eastbound & ac_index)
 
-    # Extract delays.
+    # Extract WR flight times and delays.
     for (run, result) in data.items():
         if run.startswith('WR'):
+            nr_run = f'N{run[1:]}'
+
             wr_runs.append(run)
             wr_ni.append(result['conf']['ni_ac'])
 
             eastbound = (result['flstlog']['hdg'] > 45) & (result['flstlog']['hdg'] < 135)
             ac_index = result['flstlog']['callsign'].isin(result['ac'])
 
-            east_delay = result['flstlog']['flight_time'][eastbound & ac_index].mean()
-            north_delay = result['flstlog']['flight_time'][~eastbound & ac_index].mean()
-            flow_delay[0].append(east_delay - east_flight_time)
-            flow_delay[1].append(north_delay - north_flight_time)
-            ratio.append((eastbound & ac_index).sum() / (~eastbound & ac_index).sum())
+            total_east_flight_time_wr = result['flstlog']['flight_time'][eastbound & ac_index].sum()
+            total_north_flight_time_wr = result['flstlog']['flight_time'][~eastbound & ac_index].sum()
+            flow_delay[0].append((total_east_flight_time_wr - total_east_flight_time_nr[nr_run])
+                                 / total_east_ac[nr_run])
+            flow_delay[1].append((total_north_flight_time_wr - total_north_flight_time_nr[nr_run])
+                                 / total_north_ac[nr_run])
+            ratio.append(total_east_ac[nr_run] / total_north_ac[nr_run])
 
     return wr_ni, flow_delay, ratio
 

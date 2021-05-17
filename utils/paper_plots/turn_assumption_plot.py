@@ -78,12 +78,11 @@ def process_delays(data_dict: dict):
             turn_pct.append(result['scn']['flow_ratio'][2] / BASE_RATIO[0] * 100)
             flow_ratio.append(result['scn']['flow_ratio'])
 
-            ac_index = result['flstlog']['callsign'].isin(result['ac'])
-            nr_flight_time = data_dict[f'N{run[1:]}']['flstlog']['flight_time'][ac_index].mean()
-            wr_flight_time = result['flstlog']['flight_time'][ac_index].mean()
+            nr_run = f'N{run[1:]}'
 
-            delay.append(wr_flight_time - nr_flight_time)
-            nr_conf.append(data_dict[f'N{run[1:]}']['conf']['ntotal_conf'])
+            delay.append((result['flst']['total_flight_time'] - data_dict[nr_run]['flst']['total_flight_time'])
+                         / result['flst']['num_ac'])
+            nr_conf.append(data_dict[nr_run]['conf']['ntotal_conf'])
             wr_conf.append(result['conf']['ntotal_conf'])
             nr_ac.append(data_dict[f'N{run[1:]}']['conf']['ni_ac'])
             wr_ac.append(result['conf']['ni_ac'])

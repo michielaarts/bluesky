@@ -117,7 +117,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
     # Delay.
     wr_delay_fig, wr_delay_ax = plt.subplots()
     for i in range(len(data)):
-        wr_delay_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'flight_time'] - data[i]['NR', 'flight_time'],
+        wr_delay_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'delay'],
                          label=None, linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
         wr_delay_ax.plot(models[i].n_inst_wr, models[i].delay_wr,
                          label=None, color=COLORS[i])
@@ -239,8 +239,7 @@ def determine_k(save: bool, folder: Path) -> pd.DataFrame:
         k_dict['c_total_nr'] = fit_k(data[i]['NR', 'ntotal_conf'], k_model.c_total_nr)
         k_dict['los_inst_nr'] = fit_k(data[i]['NR', 'ni_los'], k_model.los_inst_nr)
         k_dict['los_total_nr'] = fit_k(data[i]['NR', 'ntotal_los'], k_model.los_total_nr)
-        k_dict['delay_wr'] = fit_k(data[i]['WR', 'flight_time'] - data[i]['NR', 'flight_time'],
-                                   k_model.delay_wr)
+        k_dict['delay_wr'] = fit_k(data[i]['WR', 'delay'], k_model.delay_wr)
         k_dict['mean_v'] = np.nan
         k_dict['c_total_wr'] = fit_k(data[i]['WR', 'ntotal_conf'], k_model.c_total_wr)
         k_dict['n_inst_wr'] = fit_k(data[i]['WR', 'ni_ac'], k_model.n_inst_wr)

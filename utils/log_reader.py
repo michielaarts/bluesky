@@ -228,6 +228,7 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         logging_df = flst_df[flst_df['callsign'].isin(ac)]
         flst = logging_df[['flight_time', 'dist2D', 'dist3D', 'work_done', 'tas']].mean().to_dict()
         flst['num_ac'] = len(ac)
+        flst['total_flight_time'] = sum(logging_df['flight_time'])
         return flst, ac
     else:
         # NR case.
@@ -235,6 +236,7 @@ def process_flstlog(flst_df: pd.DataFrame, start_time: float, end_time: float, a
         all_ac = logging_df['callsign'].to_numpy()
         flst = logging_df[['flight_time', 'dist2D', 'dist3D', 'work_done', 'tas']].mean().to_dict()
         flst['num_ac'] = len(all_ac)
+        flst['total_flight_time'] = sum(logging_df['flight_time'])
         return flst, all_ac
 
 
@@ -327,6 +329,8 @@ def plot_result(result: dict, ana_model: AnalyticalModel) -> Tuple[List[plt.Figu
         data[reso]['duration_conf'] = data[reso]['ni_conf'] * ana_model.duration[1] / data[reso]['ntotal_conf']
         data[reso]['duration_los'] = data[reso]['ni_los'] * ana_model.duration[1] / data[reso]['ntotal_los']
         data[reso]['stable_filter'] = data[reso]['stable'] & data[reso]['cooled_down']
+        data[reso]['delay'] = ((data[reso]['total_flight_time'] - data['NR']['total_flight_time'])
+                               / data[reso]['ntotal_ac'])
         # Set all unstable data to zero.
         for key in data[reso].keys():
             if key != 'stable_filter':
@@ -590,7 +594,7 @@ def estimate_accuracy(data: dict, ana_model: AnalyticalModel) -> pd.Series:
 
 
 if __name__ == '__main__':
-    use_pkl = True
+    use_pkl = False
 
     if use_pkl:
         res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_expon_grid_NR.pkl')
