@@ -22,7 +22,7 @@ BUILD_UP_DURATION = 15 * 60.  # s
 EXPERIMENT_DURATION = 45 * 60.  # s
 COOL_DOWN_DURATION = 15 * 60.  # s
 DURATION = (BUILD_UP_DURATION, EXPERIMENT_DURATION, COOL_DOWN_DURATION)
-MAX_VALUE = 30.
+MAX_VALUE = 32.5
 ACCURACY = 100
 
 MEAN_FLIGHT_TIME = 2000. / SPEED
@@ -109,6 +109,29 @@ def create_plots(save: bool, folder: Path):
     nr_los_ax.set_ylabel('Total number of LoS NR [-]')
     nr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_ax.set_ylim([-1.75/20, 1.75])
+
+    # WR LoS
+    wr_los_inst_fig, wr_los_inst_ax = plt.subplots()
+    for i in range(len(data)):
+        wr_los_inst_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ni_los'], label=None,
+                            linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+        wr_los_inst_ax.plot(models[i].n_inst, models[i].los_total_nr * 0., label=None, color=COLORS[i])
+    wr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
+    wr_los_inst_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
+    wr_los_inst_ax.set_ylabel('Number of instantaneous LoS WR [-]')
+    wr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
+    # wr_los_inst_ax.set_ylim([-1.75/20, 1.75])
+
+    wr_los_fig, wr_los_ax = plt.subplots()
+    for i in range(len(data)):
+        wr_los_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ntotal_los'], label=None,
+                       linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+        wr_los_ax.plot(models[i].n_inst, models[i].los_total_nr * 0., label=None, color=COLORS[i])
+    wr_los_ax.legend(legend_elements, legend_entries, loc=legend_loc)
+    wr_los_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
+    wr_los_ax.set_ylabel('Total number of LoS WR [-]')
+    wr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
+    # wr_los_ax.set_ylim([-1.75/20, 1.75])
 
     # Delay.
     wr_delay_fig, wr_delay_ax = plt.subplots()
@@ -198,6 +221,10 @@ def create_plots(save: bool, folder: Path):
         nr_los_inst_fig.savefig(folder / 'los_inst_nr.png', bbox_inches='tight')
         nr_los_fig.savefig(folder / 'los_total_nr.eps', bbox_inches='tight')
         nr_los_fig.savefig(folder / 'los_total_nr.png', bbox_inches='tight')
+        wr_los_inst_fig.savefig(folder / 'los_inst_wr.eps', bbox_inches='tight')
+        wr_los_inst_fig.savefig(folder / 'los_inst_wr.png', bbox_inches='tight')
+        wr_los_fig.savefig(folder / 'los_total_wr.eps', bbox_inches='tight')
+        wr_los_fig.savefig(folder / 'los_total_wr.png', bbox_inches='tight')
         wr_delay_fig.savefig(folder / 'delay_wr.eps', bbox_inches='tight')
         wr_delay_fig.savefig(folder / 'delay_wr.png', bbox_inches='tight')
         wr_conf_fig.savefig(folder / 'c_total_wr.eps', bbox_inches='tight')

@@ -114,6 +114,32 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
     # nr_los_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(nr_los_fig)
 
+    # WR LoS inst
+    wr_los_inst_fig, wr_los_inst_ax = plt.subplots()
+    for i in range(len(data)):
+        wr_los_inst_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ni_los'], label=None,
+                            linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+        wr_los_inst_ax.plot(models[i].n_inst, models[i].n_inst * 0., label=None, color=COLORS[i])
+    wr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
+    wr_los_inst_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
+    wr_los_inst_ax.set_ylabel('Total number of LoS WR [-]')
+    wr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
+    # wr_los_inst_ax.set_ylim([-1.75/20, 1.75])
+    all_figures.append(wr_los_inst_fig)
+
+    # WR LoS total
+    wr_los_fig, wr_los_ax = plt.subplots()
+    for i in range(len(data)):
+        wr_los_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ntotal_los'], label=None,
+                       linestyle=LINESTYLE, color=COLORS[i], marker=MARKER, alpha=ALPHA)
+        wr_los_ax.plot(models[i].n_inst, models[i].n_inst * 0., label=None, color=COLORS[i])
+    wr_los_ax.legend(legend_elements, legend_entries, loc=legend_loc)
+    wr_los_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
+    wr_los_ax.set_ylabel('Total number of LoS WR [-]')
+    wr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
+    # wr_los_ax.set_ylim([-1.75/20, 1.75])
+    all_figures.append(wr_los_fig)
+
     # Delay.
     wr_delay_fig, wr_delay_ax = plt.subplots()
     for i in range(len(data)):
@@ -208,6 +234,10 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         nr_los_inst_fig.savefig(folder / 'grid_los_inst_nr.png', bbox_inches='tight')
         nr_los_fig.savefig(folder / 'grid_los_total_nr.eps', bbox_inches='tight')
         nr_los_fig.savefig(folder / 'grid_los_total_nr.png', bbox_inches='tight')
+        wr_los_inst_fig.savefig(folder / 'grid_los_inst_wr.eps', bbox_inches='tight')
+        wr_los_inst_fig.savefig(folder / 'grid_los_inst_wr.png', bbox_inches='tight')
+        wr_los_fig.savefig(folder / 'grid_los_total_wr.eps', bbox_inches='tight')
+        wr_los_fig.savefig(folder / 'grid_los_total_wr.png', bbox_inches='tight')
         wr_delay_fig.savefig(folder / 'grid_delay_wr.eps', bbox_inches='tight')
         wr_delay_fig.savefig(folder / 'grid_delay_wr.png', bbox_inches='tight')
         wr_conf_fig.savefig(folder / 'grid_c_total_wr.eps', bbox_inches='tight')
@@ -263,8 +293,17 @@ def determine_k_pct(df: pd.DataFrame, save: bool, folder: Path) -> pd.DataFrame:
     return pct
 
 
+def determine_mean_los_duration():
+    total_los = np.array([data[i]['WR', 'ntotal_los'] for i in range(len(data))])
+    inst_los = np.array([data[i]['WR', 'ni_los'] for i in range(len(data))])
+    logging_time = models[0].duration[1]
+    mean_los_duration = opt.fmin(lambda t_los: np.nansum(np.power(inst_los * logging_time / t_los - total_los, 2)),
+                                 x0=1, disp=False)[0]
+    return mean_los_duration
+
+
 if __name__ == '__main__':
-    SAVE = True
+    SAVE = False
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
     data, urban_grids, prefixes = load_files()
@@ -272,3 +311,5 @@ if __name__ == '__main__':
     figs = create_plots(save=SAVE, folder=PAPER_FOLDER)
     k_df = determine_k(save=SAVE, folder=PAPER_FOLDER)
     pct_df = determine_k_pct(k_df, save=SAVE, folder=PAPER_FOLDER)
+    mean_t_los = determine_mean_los_duration()
+    print('Mean los duration: ', mean_t_los)
