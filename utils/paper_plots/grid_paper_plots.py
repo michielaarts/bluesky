@@ -122,7 +122,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         wr_los_inst_ax.plot(models[i].n_inst, models[i].n_inst * 0., label=None, color=COLORS[i])
     wr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_los_inst_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
-    wr_los_inst_ax.set_ylabel('Total number of LoS WR [-]')
+    wr_los_inst_ax.set_ylabel('Number of instantaneous LoS WR [-]')
     wr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_los_inst_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(wr_los_inst_fig)
@@ -224,6 +224,20 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
     # dep_ax.set_ylim([-550/20, 550])
     all_figures.append(dep_fig)
 
+    # Conf LoS figure.
+    nr_conf_los_fig, nr_conf_los_ax = plt.subplots()
+    for i in range(len(data)):
+        nr_conf_los_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ntotal_conf'],
+                            label='Conflicts', linestyle='None', color='royalblue', marker=MARKER, alpha=ALPHA)
+        nr_conf_los_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ntotal_los'],
+                            label='LoS', linestyle='None', color='darkorange', marker=MARKER, alpha=ALPHA)
+    nr_conf_los_ax.legend(loc=legend_loc)
+    nr_conf_los_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
+    nr_conf_los_ax.set_ylabel('Total number of ... [-]')
+    nr_conf_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
+    # nr_conf_los_ax.set_ylim([-550/20, 550])
+    all_figures.append(nr_conf_los_fig)
+
     # Save figures.
     if save:
         nr_conf_inst_fig.savefig(folder / 'grid_c_inst_nr.eps', bbox_inches='tight')
@@ -248,6 +262,8 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         mfd_fig.savefig(folder / 'grid_mfd.png', bbox_inches='tight')
         dep_fig.savefig(folder / 'grid_dep.eps', bbox_inches='tight')
         dep_fig.savefig(folder / 'grid_dep.png', bbox_inches='tight')
+        nr_conf_los_fig.savefig(folder / 'grid_nr_conf_los.eps', bbox_inches='tight')
+        nr_conf_los_fig.savefig(folder / 'grid_nr_conf_los.png', bbox_inches='tight')
     return all_figures
 
 
@@ -303,7 +319,7 @@ def determine_mean_los_duration():
 
 
 if __name__ == '__main__':
-    SAVE = False
+    SAVE = True
     PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
     data, urban_grids, prefixes = load_files()

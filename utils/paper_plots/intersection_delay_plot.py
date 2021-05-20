@@ -3,8 +3,11 @@ from pathlib import Path
 import pickle as pkl
 from tkinter import Tk, filedialog
 from typing import Tuple
+import pandas as pd
 from utils.intersection_model import IntersectionModel
 import re
+import numpy as np
+import scipy.optimize as opt
 
 RES_FOLDER = Path(r'../../output/RESULT/')
 PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
@@ -59,6 +62,7 @@ def process_delays(res: dict):
     total_east_ac = dict()
     total_north_ac = dict()
     wr_runs = []
+    nr_ni = []
     wr_ni = []
     flow_delay = ([], [])
     ratio = []
@@ -79,6 +83,7 @@ def process_delays(res: dict):
 
             wr_runs.append(run)
             wr_ni.append(result['conf']['ni_ac'])
+            nr_ni.append(res[nr_run]['conf']['ni_ac'])
 
             eastbound = (result['flstlog']['hdg'] > 45) & (result['flstlog']['hdg'] < 135)
             ac_index = result['flstlog']['callsign'].isin(result['ac'])
@@ -91,13 +96,18 @@ def process_delays(res: dict):
                                  / total_north_ac[nr_run])
             ratio.append(total_east_ac[nr_run] / total_north_ac[nr_run])
 
-    return wr_ni, flow_delay, ratio
+    return nr_ni, wr_ni, flow_delay, ratio
+
+
+def fit_k(exp, ana_model) -> float:
+    return opt.fmin(lambda k: np.nansum(np.power(exp - ana_model.values * k, 2)),
+                    x0=1, disp=False)[0]
 
 
 if __name__ == '__main__':
     data, flow_ratio = load_file()
     model = load_analytical_model(flow_ratio)
-    n_inst_wr, flow_delays, exp_ratio = process_delays(data)
+    n_inst_nr, n_inst_wr, flow_delays, exp_ratio = process_delays(data)
 
     # Plot delay.
     fig, ax = plt.subplots()
@@ -112,8 +122,19 @@ if __name__ == '__main__':
     ax.set_xlabel('Number of instantaneous aircraft WR [-]')
     ax.set_ylabel('Mean delay per aircraft [s]')
     ax.set_xlim([-MAX_VALUE/20, MAX_VALUE])
-    ax.set_ylim([-30/20, 30])
+    ax.set_ylim([-45/20, 45])
 
     fr_string = ''.join(str(round(flow * 100)).zfill(2) for flow in flow_ratio)
     fig.savefig(PAPER_FOLDER / f'flow_delay_{fr_string}.png', bbox_inches='tight')
     fig.savefig(PAPER_FOLDER / f'flow_delay_{fr_string}.eps', bbox_inches='tight')
+
+    new_model = model.copy()
+    new_model.n_inst = np.array(n_inst_nr)
+    new_model.calculate_models()
+    new_model.delays[new_model.delays >= 1E4] = np.nan
+    k_east = fit_k(flow_delays[0], new_model.delays.loc['west', 'middle'])
+    k_north = fit_k(flow_delays[1], new_model.delays.loc['south', 'middle'])
+    k_df = pd.DataFrame({'k': [k_east, k_north]}, index=['east', 'north'])
+    k_df['k_pct'] = k_df['k'].copy().apply(lambda k: (1 - abs((k - 1)/k)) * 100)
+    k_df.to_csv(PAPER_FOLDER / f'flow_delay_{fr_string}_accuracy.csv')
+    print(k_df.head())
