@@ -89,7 +89,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
     # nr_conf_ax.set_ylim([-250/20, 250])
     all_figures.append(nr_conf_fig)
 
-    # NR LoS count.
+    # NR intrusion count.
     nr_los_inst_fig, nr_los_inst_ax = plt.subplots()
     for i in range(len(data)):
         nr_los_inst_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ni_los'], label=None,
@@ -97,7 +97,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         nr_los_inst_ax.plot(models[i].n_inst, models[i].los_inst_nr, label=None, color=COLORS[i])
     nr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_los_inst_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
-    nr_los_inst_ax.set_ylabel('Number of instantaneous LoS NR [-]')
+    nr_los_inst_ax.set_ylabel('Number of instantaneous intrusions NR [-]')
     nr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_inst_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(nr_los_inst_fig)
@@ -109,12 +109,12 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         nr_los_ax.plot(models[i].n_inst, models[i].los_total_nr, label=None, color=COLORS[i])
     nr_los_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     nr_los_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
-    nr_los_ax.set_ylabel('Total number of LoS NR [-]')
+    nr_los_ax.set_ylabel('Total number of intrusions NR [-]')
     nr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # nr_los_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(nr_los_fig)
 
-    # WR LoS inst
+    # WR intrusion inst
     wr_los_inst_fig, wr_los_inst_ax = plt.subplots()
     for i in range(len(data)):
         wr_los_inst_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ni_los'], label=None,
@@ -122,12 +122,12 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         wr_los_inst_ax.plot(models[i].n_inst, models[i].n_inst * 0., label=None, color=COLORS[i])
     wr_los_inst_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_los_inst_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
-    wr_los_inst_ax.set_ylabel('Number of instantaneous LoS WR [-]')
+    wr_los_inst_ax.set_ylabel('Number of instantaneous intrusions WR [-]')
     wr_los_inst_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_los_inst_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(wr_los_inst_fig)
 
-    # WR LoS total
+    # WR intrusion total
     wr_los_fig, wr_los_ax = plt.subplots()
     for i in range(len(data)):
         wr_los_ax.plot(data[i]['WR', 'ni_ac'], data[i]['WR', 'ntotal_los'], label=None,
@@ -135,7 +135,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         wr_los_ax.plot(models[i].n_inst, models[i].n_inst * 0., label=None, color=COLORS[i])
     wr_los_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_los_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
-    wr_los_ax.set_ylabel('Total number of LoS WR [-]')
+    wr_los_ax.set_ylabel('Total number of intrusions WR [-]')
     wr_los_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_los_ax.set_ylim([-1.75/20, 1.75])
     all_figures.append(wr_los_fig)
@@ -230,7 +230,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
         nr_conf_los_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ntotal_conf'],
                             label='Conflicts', linestyle='None', color='royalblue', marker=MARKER, alpha=ALPHA)
         nr_conf_los_ax.plot(data[i]['NR', 'ni_ac'], data[i]['NR', 'ntotal_los'],
-                            label='LoS', linestyle='None', color='darkorange', marker=MARKER, alpha=ALPHA)
+                            label='Intrusions', linestyle='None', color='darkorange', marker=MARKER, alpha=ALPHA)
     nr_conf_los_ax.legend(loc=legend_loc)
     nr_conf_los_ax.set_xlabel('Number of instantaneous aircraft NR [-]')
     nr_conf_los_ax.set_ylabel('Total number of ... [-]')
