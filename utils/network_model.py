@@ -50,7 +50,7 @@ class NetworkModel(AnalyticalModel):
         self.turn_model = turn_model
 
         self.cruise_alt = 50. * ft  # m
-        self.departure_alt = 0. * ft  # m
+        self.departure_alt = 50. * ft  # m
         self.mean_route_length = self.urban_grid.mean_route_length
         self.mean_flight_time_nr = self.mean_route_length / self.speed
 

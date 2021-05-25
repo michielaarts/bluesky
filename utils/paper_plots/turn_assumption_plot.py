@@ -15,7 +15,8 @@ LABELS = ('Turn', 'No turn')
 MARKER = 'x'
 ALPHA = 0.5
 LINESTYLE = 'None'
-LEGEND_ELEMENTS = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=color) for color in COLORS]
+LEGEND_ELEMENTS = [plt.Line2D([0], [0], linestyle='-', marker=MARKER, color=COLORS[0]),
+                   plt.Line2D([0], [0], linestyle='-', marker='None', color=COLORS[1])]
 
 S_H = 50.  # m
 S_V = 25.  # ft

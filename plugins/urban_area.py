@@ -221,7 +221,12 @@ class Area(Entity):
 
             # if lospairs_new:
             #     # Use this for debugging reso algo.
-            #     print('LoS found:', lospairs_new)
+            #     print('LoS detected:', lospairs_new)
+            #     print()
+            #
+            # if confpairs_new:
+            #     # Use this for debugging reso algo.
+            #     print('Conflict detected:', confpairs_new)
             #     print()
 
             self.ntotal_conf += len(confpairs_new)
