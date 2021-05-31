@@ -1,7 +1,9 @@
 """
-Urban environment speed-based CR algorithm.
+Constrained urban environment speed-based CR algorithm.
 Note: - Decelerating only
       - Descending aircraft are ignored.
+
+To be used in combination with urban_area plugin and utils.urban scenario generators.
 
 Created by Michiel Aarts - March 2021
 """

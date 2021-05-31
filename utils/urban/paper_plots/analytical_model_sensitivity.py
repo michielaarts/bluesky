@@ -5,8 +5,8 @@ Created by Michiel Aarts, May 2021.
 """
 
 import numpy as np
-from utils.network_model import NetworkModel
-from utils.urban_grid_network import UrbanGrid
+from utils.urban.network_model import NetworkModel
+from utils.urban.urban_grid_network import UrbanGrid
 
 # Base grid.
 N_ROWS = 7

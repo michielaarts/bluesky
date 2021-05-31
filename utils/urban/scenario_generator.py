@@ -3,7 +3,7 @@ Scenario generator script for an orthogonal grid network experiment.
 
 Created by Michiel Aarts, March 2021
 """
-from utils.urban_grid_network import UrbanGrid
+from utils.urban.urban_grid_network import UrbanGrid
 import numpy as np
 import scipy.stats as stats
 import random
@@ -11,7 +11,7 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
-from utils.scn_reader import plot_flow_rates
+from utils.urban.scn_reader import plot_flow_rates
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
@@ -161,8 +161,8 @@ class ScenarioGenerator:
     def write_scenario(
         self, all_scen: list, asas: str = 'on',
         prefix: str = 'test_scen',
-        scn_path: Path = Path('../scenario/URBAN/'),
-        pkl_path: Path = Path('../scenario/URBAN/Data/')
+        scn_path: Path = Path('../../scenario/URBAN/'),
+        pkl_path: Path = Path('../../scenario/URBAN/Data/')
     ) -> None:
         """
         Writes one or more scenarios to *.scn files.
@@ -310,7 +310,7 @@ class ScenarioGenerator:
 
                 print(f'Written {scn_path / scn_file}')
 
-    def save_urban_grid(self, prefix: str = '', pkl_path: Path = Path('../scenario/URBAN/Data/')) -> None:
+    def save_urban_grid(self, prefix: str = '', pkl_path: Path = Path('../../scenario/URBAN/Data/')) -> None:
         """ Save urban grid to .pkl file. """
         # Ensure flow dfs are evaluated.
         _ = self.urban_grid.flow_df

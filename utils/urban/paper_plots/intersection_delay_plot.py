@@ -4,12 +4,12 @@ import pickle as pkl
 from tkinter import Tk, filedialog
 from typing import Tuple
 import pandas as pd
-from utils.intersection_model import IntersectionModel
+from utils.urban.intersection_model import IntersectionModel
 import re
 import numpy as np
 import scipy.optimize as opt
 
-RES_FOLDER = Path(r'../../output/RESULT/')
+RES_FOLDER = Path(r'../../../output/RESULT/')
 PAPER_FOLDER = Path(r'C:\Users\michi\Dropbox\TU\Thesis\05_Paper')
 
 COLORS = ('green', 'firebrick')

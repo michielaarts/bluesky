@@ -2,7 +2,7 @@ from tkinter import Tk, filedialog
 from pathlib import Path
 import pickle as pkl
 
-RES_FOLDER = Path('../../output/RESULT/')
+RES_FOLDER = Path('../../../output/RESULT/')
 
 tk_root = Tk()
 res_files = filedialog.askopenfilenames(initialdir=RES_FOLDER, title='Select results to include in total',

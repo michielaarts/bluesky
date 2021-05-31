@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 root = Tk()
-OUTPUT_DIR = Path('../output/')
+OUTPUT_DIR = Path('../../output/')
 filenames = filedialog.askopenfilenames(initialdir=OUTPUT_DIR)
 root.destroy()
 

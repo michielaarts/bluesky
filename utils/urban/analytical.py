@@ -1,5 +1,5 @@
 """
-The analytical model base class.
+The constrained urban airspace analytical model base class.
 
 Created by Michiel Aarts, April 2021
 """

@@ -3,7 +3,7 @@ The analytical model class for a single orthogonal intersection.
 
 Created by Michiel Aarts, April 2021
 """
-from utils.analytical import AnalyticalModel
+from utils.urban.analytical import AnalyticalModel
 import numpy as np
 import pandas as pd
 from typing import Tuple

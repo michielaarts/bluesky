@@ -9,9 +9,9 @@ import pickle as pkl
 import scipy.optimize as opt
 from typing import Tuple
 from pathlib import Path
-from utils.urban_grid_network import UrbanGrid
-from utils.analytical import AnalyticalModel
-from utils.scn_reader import plot_flow_rates
+from utils.urban.urban_grid_network import UrbanGrid
+from utils.urban.analytical import AnalyticalModel
+from utils.urban.scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm, ft
 
 # Vertical speed depends on the steepness used in bluesky/traffic/autopilot.py, adjust accordingly.
@@ -388,7 +388,7 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../scenario/URBAN/Data/final_grid_urban_grid.pkl')
+    pkl_file = Path(r'../../scenario/URBAN/Data/final_grid_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 

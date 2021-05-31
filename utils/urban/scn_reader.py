@@ -101,7 +101,7 @@ def plot_flow_rates(routing_df: pd.DataFrame) -> None:
 if __name__ == '__main__':
     # Select file.
     root = Tk()
-    SCN_DATA_DIR = Path('../scenario/URBAN/Data/')
+    SCN_DATA_DIR = Path('../../scenario/URBAN/Data/')
     filename = filedialog.askopenfilename(initialdir=SCN_DATA_DIR, filetypes=[('Scenario pickle', '*.pkl')])
     root.destroy()
 

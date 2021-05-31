@@ -8,14 +8,14 @@ import scipy.optimize as opt
 from pathlib import Path
 from typing import List, Tuple
 from tkinter import Tk, filedialog
-from utils.analytical import AnalyticalModel
-from utils.network_model import NetworkModel
-from utils.intersection_model import IntersectionModel
-from utils.urban_grid_network import UrbanGrid
+from utils.urban.analytical import AnalyticalModel
+from utils.urban.network_model import NetworkModel
+from utils.urban.intersection_model import IntersectionModel
+from utils.urban.urban_grid_network import UrbanGrid
 
 # Standard inputs.
-OUTPUT_FOLDER = Path('../output/')
-SCN_FOLDER = Path('../scenario/URBAN/')
+OUTPUT_FOLDER = Path('../../output/')
+SCN_FOLDER = Path('../../scenario/URBAN/')
 PROCESS_WR = True
 
 
@@ -597,7 +597,7 @@ if __name__ == '__main__':
     use_pkl = True
 
     if use_pkl:
-        res_pkl = Path(r'C:\Users\michi\OneDrive\Documenten\GitHub\bluesky\output\RESULT\batch_expon_grid_NR.pkl')
+        res_pkl = Path(r'/output/RESULT/batch_expon_grid_NR.pkl')
         with open(res_pkl, 'rb') as f:
             res = pkl.load(f)
     else:

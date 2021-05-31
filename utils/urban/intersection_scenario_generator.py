@@ -10,8 +10,8 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
-from utils.urban_grid_network import UrbanGrid
-from utils.intersection_model import IntersectionModel
+from utils.urban.urban_grid_network import UrbanGrid
+from utils.urban.intersection_model import IntersectionModel
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.
 DEPARTURE_ALTITUDE = 0.  # ft
@@ -189,8 +189,8 @@ class ScenarioGenerator:
     def write_scenario(
         self, all_scen: list, asas: str = 'on',
         prefix: str = 'test_scen',
-        scn_path: Path = Path('../scenario/URBAN/'),
-        pkl_path: Path = Path('../scenario/URBAN/Data/')
+        scn_path: Path = Path('../../scenario/URBAN/'),
+        pkl_path: Path = Path('../../scenario/URBAN/Data/')
     ) -> None:
         """
         Writes one or more scenarios to *.scn files.

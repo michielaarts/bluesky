@@ -4,11 +4,11 @@ from pathlib import Path
 import pickle as pkl
 from tkinter import Tk, filedialog
 from typing import Tuple, List
-from utils.intersection_model import IntersectionModel
+from utils.urban.intersection_model import IntersectionModel
 import pandas as pd
 import scipy.optimize as opt
 
-RES_FOLDER = Path(r'../../output/RESULT/')
+RES_FOLDER = Path(r'../../../output/RESULT/')
 
 COLORS = ('blue', 'firebrick')
 LABELS = ('Turn', 'No turn')
