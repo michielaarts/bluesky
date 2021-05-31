@@ -51,8 +51,6 @@ class NetworkModel(AnalyticalModel):
 
         self.cruise_alt = 50. * ft  # m
         self.departure_alt = 50. * ft  # m
-        self.mean_route_length = self.urban_grid.mean_route_length
-        self.mean_flight_time_nr = self.mean_route_length / self.speed
 
         # Sanity check.
         if self.urban_grid.grid_height != self.urban_grid.grid_width or \
@@ -70,7 +68,11 @@ class NetworkModel(AnalyticalModel):
         self.calculate_models()
 
     def calculate_models(self):
-        assert isinstance(self.n_inst, np.ndarray), 'calculate_models() only works with n_inst as numpy array'
+        assert isinstance(self.n_inst, np.ndarray), "calculate_models() only works with n_inst as numpy array"
+
+        # Extract mean flight characteristics.
+        self.mean_route_length = self.urban_grid.mean_route_length
+        self.mean_flight_time_nr = self.mean_route_length / self.speed
 
         # Determine flow proportions and rates.
         self.n_total = self.n_inst * self.duration[1] / self.mean_flight_time_nr
