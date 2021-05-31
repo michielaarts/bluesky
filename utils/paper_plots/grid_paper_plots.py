@@ -4,7 +4,7 @@ from pathlib import Path
 from tkinter import Tk, filedialog
 from typing import List, Tuple
 from utils.network_model import NetworkModel
-from plugins.urban import UrbanGrid
+from utils.urban_grid_network import UrbanGrid
 import pickle as pkl
 import re
 import numpy as np
@@ -149,7 +149,7 @@ def create_plots(save: bool, folder: Path) -> List[plt.Figure]:
                          label=None, color=COLORS[i])
     wr_delay_ax.legend(legend_elements, legend_entries, loc=legend_loc)
     wr_delay_ax.set_xlabel('Number of instantaneous aircraft WR [-]')
-    wr_delay_ax.set_ylabel('Mean intersection delay per vehicle [s]')
+    wr_delay_ax.set_ylabel('Mean delay per vehicle [s]')
     wr_delay_ax.set_xlim([-MAX_VALUE / 20, MAX_VALUE])
     # wr_delay_ax.set_ylim([-6/20, 6])
     all_figures.append(wr_delay_fig)

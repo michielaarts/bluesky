@@ -10,7 +10,7 @@ from pathlib import Path
 from bluesky.tools.aero import nm, kts
 import pickle as pkl
 from typing import Tuple
-from plugins.urban import UrbanGrid
+from utils.urban_grid_network import UrbanGrid
 from utils.intersection_model import IntersectionModel
 
 # Let aircraft climb slightly to cruise altitude, to prevent LoS at creation.

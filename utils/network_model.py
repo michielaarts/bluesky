@@ -9,7 +9,7 @@ import pickle as pkl
 import scipy.optimize as opt
 from typing import Tuple
 from pathlib import Path
-from plugins.urban import UrbanGrid
+from utils.urban_grid_network import UrbanGrid
 from utils.analytical import AnalyticalModel
 from utils.scn_reader import plot_flow_rates
 from bluesky.tools.aero import fpm, ft

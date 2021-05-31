@@ -1,47 +1,18 @@
 """
-Urban environment orthogonal grid plugin.
-Can also be used by a scenario_generator to create scenarios, without including this plugin in bluesky.
+Urban environment orthogonal grid class.
+Can be used by a scenario_generator to create scenarios.
 
 Created by Michiel Aarts, March 2021
 """
 import numpy as np
 from typing import List, Tuple
 import pandas as pd
-from bluesky import navdb
-from bluesky.tools.aero import nm
-from bluesky.core import Entity
 import random
 from bluesky.tools.geo import kwikqdrdist
 
-N_ROWS = 19
-N_COLS = N_ROWS
-GRID_HEIGHT = 200  # m
-GRID_WIDTH = GRID_HEIGHT
-S_h = 100 / nm
-t_l = 60.
 
-
-### Initialization function of your plugin. Do not change the name of this
-### function, as it is the way BlueSky recognises this file as a plugin.
-def init_plugin():
-    """ Plugin initialisation function. """
-    UrbanGrid(N_ROWS, N_COLS, GRID_WIDTH, GRID_HEIGHT, load_grid=True)
-
-    # Configuration parameters
-    config = {
-        # The name of your plugin
-        'plugin_name': 'URBAN',
-
-        # The type of this plugin. For now, only simulation plugins are possible.
-        'plugin_type': 'sim',
-    }
-
-    # init_plugin() should always return a configuration dict.
-    return config
-
-
-class UrbanGrid(Entity):
-    def __init__(self, n_rows: int, n_cols: int, grid_width: float, grid_height: float, load_grid: bool = False):
+class UrbanGrid:
+    def __init__(self, n_rows: int, n_cols: int, grid_width: float, grid_height: float):
         """
         Instantiates a counterclockwise orthogonal grid at location (0, 0).
 
@@ -49,14 +20,12 @@ class UrbanGrid(Entity):
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
         :param grid_width: Distance in meters between two longitudinal nodes
         :param grid_height: Distance in meters between two lateral nodes
-        :param load_grid: Loads the grid as waypoints in BlueSky (default: false)
         """
         super().__init__()
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.grid_width = grid_width
         self.grid_height = grid_height
-        self.load_grid = load_grid
 
         self.name_length = max([len(str(self.n_rows)), len(str(self.n_cols))])
         self.row_sep = self.m_to_lon(self.grid_width)
@@ -86,15 +55,6 @@ class UrbanGrid(Entity):
 
         self.create_nodes()
         self.load_edges()
-
-        if self.load_grid:
-            self.load_city_grid()
-
-    # def reset(self):
-        # # TODO Apparently plugin reset is called before the navdb is reset, thus this does not yet work.
-        # super().reset()
-        # if self.load_grid:
-        #     self.load_city_grid()
 
     @staticmethod
     def m_to_lat(v_sep: float) -> float:
@@ -206,15 +166,6 @@ class UrbanGrid(Entity):
                 # Check if node exists
                 if target in self.nodes.keys():
                     self.edges[node][target] = {'length': length, 'hdg': hdg}
-
-    def load_city_grid(self) -> None:
-        """
-        Loads the city grid as waypoints directly in the bluesky navdb.
-
-        :return: None
-        """
-        for node in self.nodes.keys():
-            navdb.defwpt(name=node, lat=self.nodes[node]['lat'], lon=self.nodes[node]['lon'], wptype='citygrid')
 
     def city_grid_scenario(self, timestamp: str = '00:00:00.00') -> List[str]:
         """
@@ -366,9 +317,7 @@ class UrbanGrid(Entity):
         :return: Mean route length [m]
         """
         if self._calculated_mean_route_length is None:
-            print('Urban.py>>>Calculating mean route length. This may take some time.')
             self._evaluate_routes()
-            print('Urban.py>>>Mean route length obtained.')
         return self._calculated_mean_route_length
 
     def _create_flow_df(self) -> None:
@@ -434,9 +383,7 @@ class UrbanGrid(Entity):
         :return: the flow distribution dataframe
         """
         if self._flow_df is None:
-            print('Urban.py>>>Calculating flow dataframe.')
             self._create_flow_df()
-            print('Urban.py>>>Flow dataframe obtained.')
         return self._flow_df
 
     def _create_from_flow_df(self) -> None:
@@ -491,7 +438,14 @@ class UrbanGrid(Entity):
         :return: the from_flow distribution dataframe
         """
         if self._from_flow_df is None:
-            print('Urban.py>>>Calculating from_flow dataframe.')
             self._create_from_flow_df()
-            print('Urban.py>>>From flow dataframe obtained.')
         return self._from_flow_df
+
+
+if __name__ == '__main__':
+    N_ROWS = 7
+    N_COLS = N_ROWS
+    GRID_HEIGHT = 200.  # m
+    GRID_WIDTH = GRID_HEIGHT
+
+    urban_grid = UrbanGrid(N_ROWS, N_COLS, GRID_WIDTH, GRID_HEIGHT)

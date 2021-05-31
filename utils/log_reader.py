@@ -11,7 +11,7 @@ from tkinter import Tk, filedialog
 from utils.analytical import AnalyticalModel
 from utils.network_model import NetworkModel
 from utils.intersection_model import IntersectionModel
-from plugins.urban import UrbanGrid
+from utils.urban_grid_network import UrbanGrid
 
 # Standard inputs.
 OUTPUT_FOLDER = Path('../output/')

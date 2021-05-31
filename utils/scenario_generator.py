@@ -1,9 +1,9 @@
 """
-Scenario generator file for an orthogonal grid.
+Scenario generator script for an orthogonal grid network experiment.
 
 Created by Michiel Aarts, March 2021
 """
-from plugins.urban import UrbanGrid
+from utils.urban_grid_network import UrbanGrid
 import numpy as np
 import scipy.stats as stats
 import random
@@ -26,7 +26,7 @@ class ScenarioGenerator:
         self, n_rows: int, n_cols: int, grid_width: float, grid_height: float
     ) -> None:
         """
-        Initiates the scenario generator class, with an urban grid of plugins/urban.py.
+        Initiates the scenario generator class, with an urban grid of utils/urban_grid_network.py.
 
         :param n_rows: Number of rows (should be a multiple of 4, minus 1)
         :param n_cols: Number of columns (should be a multiple of 4, minus 1)
