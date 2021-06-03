@@ -42,6 +42,7 @@ def max_capacity(model: NetworkModel) -> dict:
     max_idx = np.nanargmax(model.n_inst_wr)
     return {'ni_nr': model.n_inst[max_idx],
             'ni_wr': model.n_inst_wr.iloc[max_idx],
+            'ntotal': model.n_total[max_idx],
             'c_total_nr': model.c_total_nr.iloc[max_idx],
             'c_total_wr': model.c_total_wr.iloc[max_idx],
             'dep': model.dep.iloc[max_idx],
