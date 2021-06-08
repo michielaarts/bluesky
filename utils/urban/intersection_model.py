@@ -122,7 +122,7 @@ class IntersectionModel(AnalyticalModel):
         :return: (Inst. no. of conflicts, Inst. no. of LoS, Total no. of conflicts, Total no. of LoS)
         """
         print('Calculating analytical NR model...')
-        nr_ni_per_section = self.section_length / self.speed * self.from_flow_rates.copy()
+        nr_ni_per_section = self.from_flow_rates.copy() * (self.section_length / self.speed)
 
         # Self interaction (LoS only).
         # Self interaction not present anymore with departure separation.
@@ -142,7 +142,7 @@ class IntersectionModel(AnalyticalModel):
         los_area = np.pi * np.power(self.s_h, 2)
         conf_vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
         conf_area = 2 * self.s_h * conf_vrel * self.t_l
-        isct_area = 4 * np.power(self.section_length, 2)
+        isct_area = np.power(2 * self.section_length, 2)
 
         upstream_nr_ni = nr_ni_per_section.loc[nr_ni_per_section.index.get_level_values('to') == 'middle']
         if len(upstream_nr_ni) == 2:
@@ -202,35 +202,33 @@ class IntersectionModel(AnalyticalModel):
         delays = pd.DataFrame().reindex_like(self.from_flow_rates)
 
         # Intersection separation.
-        t_x = self.s_h * np.sqrt(2) / self.speed  # Time to cross an intersection [s].
+        t_parallel = self.s_h / self.speed
+        t_x = t_parallel * np.sqrt(2)  # Time to cross an intersection [s].
         approach_flows = self.from_flow_rates.loc[self.from_flow_rates.index.get_level_values('to') == 'middle'].copy()
         from_nodes = approach_flows.index.get_level_values('from')
-        total_q = approach_flows.sum()
-        total_y = total_q * t_x
         for (i, j) in [(1, 0), (0, 1)]:
-            # General delay.
             q_g = approach_flows.iloc[i].squeeze()
             q_r = approach_flows.iloc[j].squeeze()
             lambda_u = 1 - t_x * q_r
             c_u = 1 / q_r
-            y = q_g * t_x
-            general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
-
-            # Stochastic delay.
-            x = q_g * t_x / np.sqrt(2) / lambda_u
-            stochastic_delay = x * x / (2 * q_g * (1 - x))
+            x = q_g * t_parallel / lambda_u
+            general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - lambda_u * x))
+            stochastic_delay = np.power(x, 2) / (2 * q_g * (1 - x))
 
             # If intersection unstable, set delay very large.
+            unstable_filter = (lambda_u * x >= 1) | (x >= 1)
             if isinstance(general_delay, pd.Series):
-                general_delay[total_y >= 1] = 1E5
+                general_delay[unstable_filter] = 1E5
+                stochastic_delay[unstable_filter] = 1E5
             else:
-                if total_y.iloc[0] >= 1:
+                if unstable_filter:
                     general_delay = 1E5
+                    stochastic_delay = 1E5
 
             # Add to delays df.
             delays.loc[(from_nodes[i], 'middle')] = general_delay + stochastic_delay
 
-        delays[delays.isna()] = 0
+        delays[delays.isna()] = 0.
         return delays
 
     def wr_model(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

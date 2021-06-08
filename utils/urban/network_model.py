@@ -261,19 +261,17 @@ class NetworkModel(AnalyticalModel):
         to_idx = self.extended_from_flow_rates.index.get_level_values('to')
 
         # Delay model.
+        t_parallel = self.s_h / self.speed
         for node in self.urban_grid.all_nodes:
             node_flows = self.extended_from_flow_rates.iloc[to_idx == node]
             from_nodes = node_flows.index.get_level_values('from')
             if node in self.urban_grid.od_nodes:
                 # Departure separation: time to merge into an airway [s].
-                t_x = self.s_h / self.speed
-                # Append departure flow rate.
-                node_flows = node_flows.append(self.departure_rate_per_node, ignore_index=True)
-                from_nodes = [from_nodes[0], 'departure']
+                t_x = t_parallel
             else:
                 # Intersection separation: Time to cross an intersection [s].
                 # Change sqrt(2) if angle between airways is not 90 degrees.
-                t_x = self.s_h * np.sqrt(2) / self.speed
+                t_x = t_parallel * np.sqrt(2)
                 if len(from_nodes) == 1:
                     # Border node, no intersection. No delay.
                     continue
@@ -281,23 +279,19 @@ class NetworkModel(AnalyticalModel):
                     # Sanity check.
                     raise ValueError(f'Intersection with {len(from_nodes)} directions found!\n', node_flows)
             # Loop through both upstream flows.
-            total_q = node_flows.sum()
-            total_y = total_q * t_x
             for (i, j) in [(1, 0), (0, 1)]:
-                # General delay.
                 q_g = node_flows.iloc[i].squeeze()
                 q_r = node_flows.iloc[j].squeeze()
                 lambda_u = 1 - t_x * q_r
                 c_u = 1 / q_r
-                y = q_g * t_x
-                general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - y))
-
-                # Stochastic delay.
-                x = q_g * t_x / np.sqrt(2) / lambda_u
-                stochastic_delay = x * x / (2 * q_g * (1 - x))
+                x = q_g * t_parallel / lambda_u
+                general_delay = c_u * np.power(1 - lambda_u, 2) / (2 * (1 - lambda_u * x))
+                stochastic_delay = np.power(x, 2) / (2 * q_g * (1 - x))
 
                 # If intersection unstable, set delay very large.
-                general_delay[total_y >= 1] = 1E5
+                unstable_filter = (lambda_u * x) >= 1 | (x >= 1)
+                general_delay[unstable_filter] = 1E5
+                stochastic_delay[unstable_filter] = 1E5
 
                 # Add to delays df.
                 delays.loc[(from_nodes[i], node)] += general_delay + stochastic_delay
@@ -390,7 +384,7 @@ if __name__ == '__main__':
     SPEED = 10.
     DURATION = (900., 2700., 900.)
 
-    pkl_file = Path(r'../../scenario/URBAN/Data/final_grid_urban_grid.pkl')
+    pkl_file = Path(r'../../scenario/URBAN/Data/expon_grid_tl15_urban_grid.pkl')
     with open(pkl_file, 'rb') as f:
         grid = pkl.load(f)
 

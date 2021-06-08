@@ -49,6 +49,23 @@ def max_capacity(model: NetworkModel) -> dict:
             'mean_d': model.delay_wr.iloc[max_idx]}
 
 
+def plot_mfd(model: NetworkModel, label: str) -> None:
+    # Extract vars.
+    ni = model.n_inst_wr.copy()
+    fr = model.flow_rate_wr.copy()
+
+    # Strip nan.
+    ni = ni[~ni.isna()].to_numpy()
+    fr = fr[~fr.isna()].to_numpy()
+
+    # Repeat last value.
+    ni = np.append(ni, ni[-1])
+    fr = np.append(fr, 0.)
+
+    # Plot.
+    plt.plot(ni, fr, label=label)
+
+
 if __name__ == '__main__':
     all_capacities = dict()
     all_capacities['Base'] = max_capacity(BASE_MODEL)
@@ -84,3 +101,14 @@ if __name__ == '__main__':
     plt.xlabel('Maximum number of instantaneous aircraft WR [-]')
     plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity.eps'), bbox_inches='tight')
     plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity.png'), bbox_inches='tight')
+
+    # Create MFD plot.
+    plt.figure()
+    plot_mfd(BASE_MODEL, 'Base')
+    plot_mfd(v2_model, r'$2 \cdot V_{NR}$')
+    plot_mfd(sh_model, r'$2 \cdot S_h$')
+    plt.legend(loc='upper left')
+    plt.xlabel('Number of instantaneous aircraft [veh]')
+    plt.ylabel('Airspace flow rate [veh m / s]')
+    plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_MFD.eps'), bbox_inches='tight')
+    plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_MFD.png'), bbox_inches='tight')
