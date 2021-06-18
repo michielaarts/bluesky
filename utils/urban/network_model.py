@@ -310,34 +310,34 @@ class NetworkModel(AnalyticalModel):
         print('Calculating analytical WR model...')
         max_ni_per_section = self.urban_grid.grid_height / self.s_h
 
-        section_index = self.delays.index.get_level_values('from') != 'departure'
-        section_delays = self.delays.loc[section_index].copy()
-        departure_delays = self.delays.loc[~section_index].copy()
+        leg_index = self.delays.index.get_level_values('from') != 'departure'
+        leg_delays = self.delays.loc[leg_index].copy()
+        departure_delays = self.delays.loc[~leg_index].copy()
 
         # Section delays.
-        nr_flight_time_per_section = self.urban_grid.grid_height / self.speed
-        wr_flight_time_per_section = section_delays + nr_flight_time_per_section
-        wr_v_per_section = self.urban_grid.grid_height / wr_flight_time_per_section
-        wr_ni_per_section = self.extended_from_flow_rates.loc[section_index] * wr_flight_time_per_section
+        nr_flight_time_per_leg = self.urban_grid.grid_height / self.speed
+        wr_flight_time_per_leg = leg_delays + nr_flight_time_per_leg
+        wr_v_per_leg = self.urban_grid.grid_height / wr_flight_time_per_leg
+        wr_ni_per_leg = self.extended_from_flow_rates.loc[leg_index] * wr_flight_time_per_leg
 
         # Departure delays.
-        wr_ni_per_departure = self.extended_from_flow_rates.loc[~section_index] * departure_delays
+        wr_ni_per_departure = self.extended_from_flow_rates.loc[~leg_index] * departure_delays
 
         # Sum sections and departure inst. no. of aircraft.
-        wr_ni = wr_ni_per_section.sum() + wr_ni_per_departure.sum()
-        wr_mean_v = (wr_v_per_section * wr_ni_per_section).sum() / wr_ni  # Departing aircraft have mean_v = 0.
+        wr_ni = wr_ni_per_leg.sum() + wr_ni_per_departure.sum()
+        wr_mean_v = (wr_v_per_leg * wr_ni_per_leg).sum() / wr_ni  # Departing aircraft have mean_v = 0.
         wr_mean_flight_time = self.mean_route_length / wr_mean_v
 
         # Filter unstable values and set to zero.
-        unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
+        unstable_filter = (wr_ni_per_leg > max_ni_per_section).any()
         wr_mean_v[unstable_filter] = np.nan
         wr_ni[unstable_filter] = np.nan
         wr_mean_flight_time[unstable_filter] = np.nan
-        wr_flow_rate = wr_mean_v * wr_ni
+        wr_network_flow_rate = wr_ni / wr_mean_flight_time
 
         wr_delay = wr_mean_flight_time - self.mean_flight_time_nr
 
-        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate, wr_delay
+        return wr_mean_v, wr_ni, wr_mean_flight_time, wr_network_flow_rate, wr_delay
 
     def wr_camda_model(self):
         """ Based on inst. no. of aircraft and CAMDA model """

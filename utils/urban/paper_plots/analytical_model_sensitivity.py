@@ -46,7 +46,8 @@ def max_capacity(model: NetworkModel) -> dict:
             'c_total_nr': model.c_total_nr.iloc[max_idx],
             'c_total_wr': model.c_total_wr.iloc[max_idx],
             'dep': model.dep.iloc[max_idx],
-            'mean_d': model.delay_wr.iloc[max_idx]}
+            'mean_d': model.delay_wr.iloc[max_idx],
+            'flow_rate': model.flow_rate_wr.iloc[max_idx]}
 
 
 def plot_mfd(model: NetworkModel, label: str) -> None:
@@ -66,28 +67,37 @@ def plot_mfd(model: NetworkModel, label: str) -> None:
     plt.plot(ni, fr, label=label)
 
 
+def plot_delay(model: NetworkModel, label: str) -> None:
+    # Extract vars.
+    ni = model.n_inst_wr.copy()
+    d = model.delay_wr.copy()
+
+    # Plot.
+    plt.plot(ni, d, label=label)
+
+
 if __name__ == '__main__':
     all_capacities = dict()
     all_capacities['Base'] = max_capacity(BASE_MODEL)
 
     # Speed x2.
     v2_model = BASE_MODEL.copy()
-    v2_model.speed *= 2.
+    v2_model.speed *= .5
     v2_model.calculate_models()
-    all_capacities[r'$2 \cdot V_{NR}$'] = max_capacity(v2_model)
+    all_capacities[r'$0.5 V_{NR}$'] = max_capacity(v2_model)
 
     # S_h x2.
     sh_model = BASE_MODEL.copy()
     sh_model.s_h *= 2.
     sh_model.calculate_models()
-    all_capacities[r'$2 \cdot S_h$'] = max_capacity(sh_model)
+    all_capacities[r'$2 S_h$'] = max_capacity(sh_model)
 
     # Grid node distance x2.
-    grid_grid = UrbanGrid(N_ROWS, N_COLS, GRID_WIDTH * 2., GRID_HEIGHT * 2.)
-    grid_model = BASE_MODEL.copy()
-    grid_model.urban_grid = grid_grid
-    grid_model.calculate_models()
-    all_capacities[r'$2 \cdot D$'] = max_capacity(grid_model)
+    # grid_grid = UrbanGrid(N_ROWS, N_COLS, GRID_WIDTH * 2., GRID_HEIGHT * 2.)
+    # grid_model = BASE_MODEL.copy()
+    # grid_model.urban_grid = grid_grid
+    # grid_model.calculate_models()
+    # all_capacities[r'$2 \cdot D$'] = max_capacity(grid_model)
 
     # Construct dataframe.
     capacity = pd.DataFrame.from_dict(all_capacities, orient='index')
@@ -105,10 +115,21 @@ if __name__ == '__main__':
     # Create MFD plot.
     plt.figure()
     plot_mfd(BASE_MODEL, 'Base')
-    plot_mfd(v2_model, r'$2 \cdot V_{NR}$')
-    plot_mfd(sh_model, r'$2 \cdot S_h$')
+    plot_mfd(v2_model, r'$0.5 V_{NR}$')
+    plot_mfd(sh_model, r'$2 S_h$')
     plt.legend(loc='upper left')
     plt.xlabel('Number of instantaneous aircraft [veh]')
     plt.ylabel('Airspace flow rate [veh m / s]')
     plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_MFD.eps'), bbox_inches='tight')
     plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_MFD.png'), bbox_inches='tight')
+
+    # Create delay plot.
+    plt.figure()
+    plot_delay(BASE_MODEL, 'Base')
+    plot_delay(v2_model, r'$0.5 V_{NR}$')
+    plot_delay(sh_model, r'$2 S_h$')
+    plt.legend(loc='upper left')
+    plt.xlabel('Number of instantaneous aircraft [veh]')
+    plt.ylabel('Mean delay per aircraft [s]')
+    plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_delay.eps'), bbox_inches='tight')
+    plt.savefig(Path('../../../output/RESULT/analytical_model_sensitivity_delay.png'), bbox_inches='tight')

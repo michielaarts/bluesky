@@ -47,7 +47,7 @@ class IntersectionModel(AnalyticalModel):
         self.cruise_alt = 0. * ft  # m
         self.departure_alt = 0. * ft  # m
         self.mean_route_length = 2000.  # m
-        self.section_length = self.mean_route_length / 2  # m.
+        self.leg_length = self.mean_route_length / 2  # m.
         self.mean_flight_time_nr = self.mean_route_length / self.speed
 
         # Turn variables.
@@ -122,7 +122,7 @@ class IntersectionModel(AnalyticalModel):
         :return: (Inst. no. of conflicts, Inst. no. of LoS, Total no. of conflicts, Total no. of LoS)
         """
         print('Calculating analytical NR model...')
-        nr_ni_per_section = self.from_flow_rates.copy() * (self.section_length / self.speed)
+        nr_ni_per_section = self.from_flow_rates.copy() * (self.leg_length / self.speed)
 
         # Self interaction (LoS only).
         # Self interaction not present anymore with departure separation.
@@ -142,7 +142,7 @@ class IntersectionModel(AnalyticalModel):
         los_area = np.pi * np.power(self.s_h, 2)
         conf_vrel = 2 * self.speed * np.sin(np.deg2rad(90) / 2)
         conf_area = 2 * self.s_h * conf_vrel * self.t_l
-        isct_area = np.power(2 * self.section_length, 2)
+        isct_area = np.power(2 * self.leg_length, 2)
 
         upstream_nr_ni = nr_ni_per_section.loc[nr_ni_per_section.index.get_level_values('to') == 'middle']
         if len(upstream_nr_ni) == 2:
@@ -245,22 +245,22 @@ class IntersectionModel(AnalyticalModel):
         wr_delay = (self.delays * self.from_flow_rates.loc[self.delays.index]).sum() / isct_flow_rates
         wr_delay[wr_delay >= 1E5] = np.nan
 
-        max_ni_per_section = self.section_length / self.s_h
+        max_ni_per_leg = self.leg_length / self.s_h
 
-        nr_flight_time_per_section = self.section_length / self.speed
-        wr_flight_time_per_section = self.delays.copy() + nr_flight_time_per_section
-        wr_v_per_section = self.section_length / wr_flight_time_per_section
-        wr_ni_per_section = self.from_flow_rates.loc[self.delays.index] * wr_flight_time_per_section
-        wr_ni = wr_ni_per_section.sum()
-        wr_mean_v = (wr_v_per_section * wr_ni_per_section.loc[wr_v_per_section.index]).sum() / wr_ni_per_section.sum()
+        nr_flight_time_per_leg = self.leg_length / self.speed
+        wr_flight_time_per_leg = self.delays.copy() + nr_flight_time_per_leg
+        wr_v_per_leg = self.leg_length / wr_flight_time_per_leg
+        wr_ni_per_leg = self.from_flow_rates.loc[self.delays.index] * wr_flight_time_per_leg
+        wr_ni = wr_ni_per_leg.sum()
+        wr_mean_v = (wr_v_per_leg * wr_ni_per_leg.loc[wr_v_per_leg.index]).sum() / wr_ni_per_leg.sum()
         wr_mean_flight_time = self.mean_route_length / wr_mean_v
 
         # Filter unstable values and set to NaN.
-        unstable_filter = (wr_ni_per_section > max_ni_per_section).any()
+        unstable_filter = (wr_ni_per_leg > max_ni_per_leg).any()
         wr_mean_v[unstable_filter] = np.nan
         wr_ni[unstable_filter] = np.nan
         wr_mean_flight_time[unstable_filter] = np.nan
-        wr_flow_rate = wr_mean_v * wr_ni
+        wr_flow_rate = wr_ni / wr_mean_flight_time
 
         return wr_mean_v, wr_ni, wr_mean_flight_time, wr_flow_rate, wr_delay
 
